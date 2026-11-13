@@ -1,10 +1,13 @@
 //! Where the encoders' files are, and their pins. SigLIP 2 and YAMNet are read from perception's models folder
 //! ($RAEA_MODELS, else ~/.local/share/raea-models) when they're there; CLAP (and SigLIP 2 on a machine without
 //! perception's copy) is fetched once from Hugging Face into raea's model cache (raea-sys-ml models.rs). YAMNet has
-//! no public ONNX source, so its column is made only where perception installed it.
+//! no public ONNX source: on a machine without perception's copy it is fetched once from the public repo's models-1
+//! release (Google's model, Apache-2.0, as ONNX) and checked against its sha256, so every machine has the same encoders
+//! and a fingerprint kept with a project judges on a teammate's fresh install (before 0.1.3 only machines with
+//! perception's copy had YAMNet, and a fingerprint trained on one refused the others).
 
 use anyhow::{Context, Result};
-use raea_sys_ml::models::{Spec, ensure};
+use raea_sys_ml::models::{Spec, ensure, ensure_url};
 use std::path::{Path, PathBuf};
 
 const CLAP: Spec = Spec {
@@ -102,7 +105,7 @@ pub fn locate() -> Result<Files> {
     let fp32 = !std::env::var("RAEA_CLAP_DTYPE").is_ok_and(|v| v == "q8");
     let c = ensure(if fp32 { &CLAP_FP32 } else { &CLAP }, &mut say).context("CLAP")?;
     let (audio, text) = if fp32 { ("audio.onnx", "text.onnx") } else { ("audio_q8.onnx", "text_q8.onnx") };
-    let yam = Some(p.join("yamnet/yamnet.onnx")).filter(|f| f.is_file());
+    let yam = Some(yamnet(&p)?);
     Ok(Files { sig_vision, sig_text, sig_tokenizer, clap_audio: c.join(audio), clap_text: c.join(text), clap_tokenizer: c.join("tokenizer.json"), yam })
 }
 
@@ -134,4 +137,28 @@ pub fn pin(file: &Path) -> String {
     let _ = std::fs::create_dir_all(crate::cache::root());
     let _ = std::fs::write(&book, serde_json::to_vec_pretty(&pins).unwrap_or_default());
     h
+}
+
+/// YAMNet's ONNX export, where every machine gets it (models-1, uploaded 11-13 from perception's copy)
+const YAMNET_URL: &str = "https://github.com/shinyobjectz/raea/releases/download/models-1/yamnet.onnx";
+/// its sha256: perception's copy, so fingerprints trained where it was keep their pins
+const YAMNET_SHA256: &str = "8e4e21d5b46cfbab9082ff15aaa43065a920d31d5572834a769f77dd5e3a14ed";
+
+/// YAMNet's model: perception's copy when it's here, else the one fetched once into raea's model cache, checked
+fn yamnet(perception: &Path) -> Result<PathBuf> {
+    let here = perception.join("yamnet/yamnet.onnx");
+    if here.is_file() {
+        return Ok(here);
+    }
+    let cached = raea_sys_ml::models::root().join("yamnet/yamnet.onnx");
+    let fresh = !cached.is_file();
+    let f = ensure_url("yamnet", "yamnet.onnx", YAMNET_URL, &mut say).context("YAMNet")?;
+    if fresh {
+        let got = crate::media::sha256(&f)?;
+        if got != YAMNET_SHA256 {
+            let _ = std::fs::remove_file(&f);
+            anyhow::bail!("YAMNet from {YAMNET_URL} has sha256 {got}, not {YAMNET_SHA256}; removed it");
+        }
+    }
+    Ok(f)
 }

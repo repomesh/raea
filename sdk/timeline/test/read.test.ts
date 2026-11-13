@@ -36,7 +36,11 @@ describe("TL0c: a timeline is read from a composition", () => {
     // every clip under the playhead that can be changed, the later one first
     expect(seqEdits(t, { op: "split", at: 45 })).toEqual([{ op: "split", i: 1, at: 45 }, { op: "split", i: 0, at: 45 }])
     expect(seqEdits(t, { op: "remove", ids: ["seq-0", "seq-3"] })).toEqual([{ op: "delete", i: 3 }, { op: "delete", i: 0 }])
-    expect(seqEdits(t, { op: "set", id: "seq-0", set: { speed: 2 } })).toEqual({ why: 'the composition\'s sequences don\'t take "set" yet' })
+    // a speed is the footage's rate; another field of a clip isn't a sequence's to take
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { speed: 2 } })).toEqual([{ op: "speed", i: 0, speed: 2 }])
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { volume: 0.5 } })).toEqual({ why: "the composition's sequences take a speed, not volume, yet" })
+    expect(seqEdits(t, { op: "duplicate", ids: ["seq-0"] })).toEqual({ why: 'the composition\'s sequences don\'t take "duplicate" yet' })
+    expect(fromSequences([{ ...rows[0], speed: 2 }], 30).tracks[0].clips[0].speed).toBe(2)
   })
 
   test("a key on a sequence is its <Nudge>'s keys, written whole; what the wrapper can't key is refused", () => {

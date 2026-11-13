@@ -17,6 +17,8 @@ export interface SeqRow {
   locked?: string
   /** the keys its <Nudge> holds, each [frame of the sequence, value, ease?] (TL5d) */
   keys?: Record<string, [number, number, Ease?][]>
+  /** how fast the footage it holds plays (its media's playbackRate), when it holds footage at one rate (TL6a) */
+  speed?: number
 }
 /** The host's edit to a sequence: its new span, a split, a delete. */
 export type SeqEdit =
@@ -25,6 +27,8 @@ export type SeqEdit =
   | { op: "delete"; i: number }
   /** the sequence's keyed properties as they now stand: written as its <Nudge keys>, one a property (TL5d) */
   | { op: "keys"; i: number; keys: Record<string, [number, number, Ease?][]> }
+  /** the footage it holds played at `speed`, its length following (TL6a) */
+  | { op: "speed"; i: number; speed: number }
 
 /** The properties a sequence's <Nudge> can key (sdk/video nudge.tsx). */
 export const KEYED = ["x", "y", "scale", "rotate", "opacity"]
@@ -37,7 +41,7 @@ const seqOf = (id: string): number | undefined => (/^seq-\d+$/.test(id) ? Number
  *  sequences are where its code puts them, and nothing here moves one that wasn't dragged. */
 export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -88,6 +92,12 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
     case "remove": {
       const r = each(op.ids, (x) => ({ op: "delete", i: x.i }))
       return Array.isArray(r) ? r.sort((a, b) => b.i - a.i) : r
+    }
+    case "set": {
+      // a speed alone is the footage's rate; anything else a sequence has is its own code's
+      const only = Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined)
+      if (only.length !== 1 || only[0] !== "speed" || !(op.set.speed! > 0)) return { why: `the composition's sequences take a speed, not ${only.join(", ") || "that"}, yet` }
+      return each([op.id], (r) => ({ op: "speed", i: r.i, speed: Math.round(op.set.speed! * 1000) / 1000 }))
     }
     case "key":
     case "unkey":

@@ -117,9 +117,12 @@ describe("TL4: the magnet and linkage", () => {
   })
 
   test("a clip dragged past its neighbour's middle swaps places with it", () => {
-    // a (0-30) dragged 40 later: its middle (55) is short of b's (60), so nothing swaps; 50 later it is past
-    expect(spans(done(film(), { op: "move", ids: ["a"], by: 40 }), "main")).toEqual(["a 0-30", "b 30-90", "c 90-120"])
-    expect(spans(done(film(), { op: "move", ids: ["a"], by: 50 }), "main")).toEqual(["b 0-60", "a 60-90", "c 90-120"])
+    // a (0-30) dragged 25 later: its leading edge (55) is short of b's middle (60), so nothing swaps; at 35 it is past
+    expect(spans(done(film(), { op: "move", ids: ["a"], by: 25 }), "main")).toEqual(["a 0-30", "b 30-90", "c 90-120"])
+    expect(spans(done(film(), { op: "move", ids: ["a"], by: 35 }), "main")).toEqual(["b 0-60", "a 60-90", "c 90-120"])
+    // and back: c (90-120) dragged earlier swaps once its start passes b's middle
+    expect(spans(done(film(), { op: "move", ids: ["c"], by: -25 }), "main")).toEqual(["a 0-30", "b 30-90", "c 90-120"])
+    expect(spans(done(film(), { op: "move", ids: ["c"], by: -35 }), "main")).toEqual(["a 0-30", "c 30-60", "b 60-120"])
   })
 
   test("with the magnet off a gap is allowed, and a clip dropped over another goes to a track above", () => {

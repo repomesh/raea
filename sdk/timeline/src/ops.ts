@@ -1,0 +1,332 @@
+// Every edit to a timeline as an operation (docs/timeline.feature TL0b): a pure function from a timeline to the
+// next, refused with its reason when it can't apply, and answered with its inverse so undo is another operation.
+// After each one the timeline is settled: the main track closed while its magnet is on (TL4a), what sits over a
+// main clip carried with it while linkage is on (TL4c), transitions kept only on cuts that still exist.
+import { cut as cutKeys, sorted } from "./keys"
+import { type Clip, end, find, type Frames, type Key, type Marker, slot, speedOf, type SpeedPoint, type Timeline, type Track, type TrackKind, type Transition, type Value, type Ease } from "./model"
+import { fits } from "./snap"
+import { played } from "./speed"
+
+export type Op =
+  /** clips moved in time by `by` frames, and (one kind's clips) onto track `track` */
+  | { op: "move"; ids: string[]; by: Frames; track?: string }
+  /** a clip's start or end dragged to the timeline frame `to` */
+  | { op: "trim"; id: string; edge: "start" | "end"; to: Frames }
+  /** the clips `ids` split at `at`; with none named, every clip under it (Cmd+B, Cmd+Shift+B: TL3d) */
+  | { op: "split"; at: Frames; ids?: string[] }
+  /** clips removed; `ripple` closes the gap on any track (Shift+Delete, TL3e) */
+  | { op: "remove"; ids: string[]; ripple?: boolean }
+  /** what is left (Q) or right (W) of `at` on a clip removed, the gap closed (TL3e) */
+  | { op: "cut"; id: string; side: "left" | "right"; at: Frames }
+  | { op: "duplicate"; ids: string[] }
+  /** a clip put on the timeline: on `track`, else the first of `kind` with room, else a new track of that kind */
+  | { op: "add"; kind: TrackKind; clip: Clip; track?: string }
+  /** a clip's own fields; `props` are merged into its props; a speed or a curve changes its length (TL6) */
+  | { op: "set"; id: string; set: Partial<Pick<Clip, "name" | "off" | "volume" | "fadeIn" | "fadeOut" | "speed" | "group">> & { curve?: SpeedPoint[] | null; props?: Record<string, Value | boolean> } }
+  /** a property's key at a frame of its clip: made, or its value (and ease) changed (TL5a) */
+  | { op: "key"; id: string; prop: string; at: Frames; value: Value; ease?: Ease }
+  | { op: "unkey"; id: string; prop: string; at: Frames }
+  | { op: "moveKey"; id: string; prop: string; at: Frames; to: Frames }
+  | { op: "ease"; id: string; prop: string; at: Frames; ease: Ease }
+  /** a marker made or changed (by its id), on the timeline or on clip `clip` (TL2e) */
+  | { op: "mark"; marker: Marker; clip?: string }
+  | { op: "unmark"; id: string; clip?: string }
+  | { op: "track"; id: string; set: Partial<Pick<Track, "name" | "locked" | "hidden" | "muted" | "height">> }
+  /** a transition put on the cut after clip `after`, or changed (TL7a) */
+  | { op: "transition"; transition: Transition }
+  | { op: "untransition"; id: string }
+  | { op: "option"; set: Partial<Pick<Timeline, "magnet" | "snapping" | "linkage">> }
+  /** the timeline as it was: what every inverse is */
+  | { op: "restore"; timeline: Timeline }
+
+export type Applied = { ok: true; timeline: Timeline; inverse: Op } | { ok: false; why: string }
+
+class Refused extends Error {}
+const no = (why: string): never => {
+  throw new Refused(why)
+}
+const whole = (n: number) => Math.round(n)
+
+/** The operation applied, or why it can't be. */
+export function apply(t: Timeline, op: Op): Applied {
+  try {
+    const next = op.op === "restore" ? op.timeline : settle(t, run(t, op), op)
+    return { ok: true, timeline: next, inverse: { op: "restore", timeline: t } }
+  } catch (e) {
+    if (e instanceof Refused) return { ok: false, why: e.message }
+    throw e
+  }
+}
+
+/** Operations in order, stopping at the first refused: the timeline they give, and each one's inverse (last first). */
+export function applyAll(t: Timeline, ops: Op[]): { timeline: Timeline; inverse: Op[]; refused?: { op: Op; why: string } } {
+  const inverse: Op[] = []
+  for (const op of ops) {
+    const r = apply(t, op)
+    if (!r.ok) return { timeline: t, inverse, refused: { op, why: r.why } }
+    inverse.unshift(r.inverse)
+    t = r.timeline
+  }
+  return { timeline: t, inverse }
+}
+
+// ---------------------------------------------------------------- reading and rewriting
+
+/** The clip and its track, when both can be changed. */
+function open(t: Timeline, id: string): { track: Track; clip: Clip } {
+  const at = find(t, id) ?? no(`there is no clip ${id}`)
+  if (at.track.locked) no(`${at.track.name ?? "that track"} is locked`)
+  if (at.clip.locked) no(`${at.clip.name ?? at.clip.id} is ${at.clip.locked}`)
+  return at
+}
+const withTracks = (t: Timeline, f: (k: Track) => Track): Timeline => ({ ...t, tracks: t.tracks.map(f) })
+const change = (t: Timeline, id: string, f: (c: Clip) => Clip): Timeline => withTracks(t, (k) => (k.clips.some((c) => c.id === id) ? { ...k, clips: k.clips.map((c) => (c.id === id ? f(c) : c)) } : k))
+/** An id no clip has, made from `id`. */
+function fresh(t: Timeline, id: string, taken: Set<string> = new Set()): string {
+  let n = `${id}+`
+  while (find(t, n) || taken.has(n)) n += "+"
+  taken.add(n)
+  return n
+}
+/** How many source frames a clip shows. */
+const shown = (c: Clip): number => (c.curve ? c.length / played(c.curve, 1) : c.length * speedOf(c))
+const isMain = (k: Track) => k.kind === "main"
+
+/** `clip` on the timeline: on `prefer` if it has room there, else the first track of `kind` with room, else a new
+ *  track of that kind in its place (TL1a, TL4a: a clip dropped over another goes to a track of its own). */
+function place(t: Timeline, kind: TrackKind, clip: Clip, prefer?: string): Timeline {
+  const ok = (k: Track) => !k.locked && (isMain(k) ? t.magnet || fits(k, clip) : fits(k, clip))
+  const want = prefer ? t.tracks.find((k) => k.id === prefer) : undefined
+  if (want?.locked) no(`${want.name ?? "that track"} is locked`)
+  const home = (want && ok(want) ? want : undefined) ?? (kind === "main" ? undefined : t.tracks.find((k) => k.kind === kind && ok(k))) ?? (kind === "main" ? t.tracks.find((k) => isMain(k) && ok(k)) : undefined)
+  if (home) return withTracks(t, (k) => (k.id === home.id ? { ...k, clips: [...k.clips, clip] } : k))
+  // no room on the main track (its magnet off): the clip becomes an overlay
+  const made: TrackKind = kind === "main" && t.tracks.some(isMain) ? "overlay" : kind
+  let n = 1
+  while (t.tracks.some((k) => k.id === `${made}-${n}`)) n++
+  const tracks = [...t.tracks]
+  tracks.splice(slot(tracks, made), 0, { id: `${made}-${n}`, kind: made, clips: [clip] })
+  return { ...t, tracks }
+}
+
+// ---------------------------------------------------------------- the operations
+
+function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
+  switch (op.op) {
+    case "move": {
+      const by = whole(op.by)
+      const moving = op.ids.map((id) => open(t, id))
+      if (!moving.length) no("nothing is picked")
+      if (Math.min(...moving.map((m) => m.clip.start)) + by < 0) no("it would start before the film does")
+      const ids = new Set(op.ids)
+      // lifted off their tracks, then each put down where it lands: its own track, the one named, or one with room
+      let next = withTracks(t, (k) => ({ ...k, clips: k.clips.filter((c) => !ids.has(c.id)) }))
+      for (const m of moving) {
+        const to = op.track ? (t.tracks.find((k) => k.id === op.track) ?? no(`there is no track ${op.track}`)) : m.track
+        if (to.kind !== m.track.kind && !(isMain(to) || isMain(m.track)) ) no(`a ${m.track.kind} clip doesn't go on a ${to.kind} track`)
+        next = place(next, to.kind, { ...m.clip, start: m.clip.start + by }, to.id)
+      }
+      return next
+    }
+    case "trim": {
+      const { track, clip } = open(t, op.id)
+      const to = whole(op.to), speed = speedOf(clip)
+      if (op.edge === "start") {
+        // back out no further than the source's first frame, in no further than one frame of clip
+        const least = clip.in === undefined ? 0 : clip.start - Math.floor(clip.in / speed)
+        const before = isMain(track) && t.magnet ? 0 : Math.max(0, ...track.clips.filter((c) => c.id !== clip.id && end(c) <= clip.start).map(end))
+        const start = Math.min(end(clip) - 1, Math.max(to, least, before, 0))
+        const d = start - clip.start
+        if (!d) return t
+        return change(t, clip.id, (c) => ({ ...c, start, length: c.length - d, ...(c.in !== undefined && { in: Math.max(0, c.in + Math.round(d * speed)) }), ...(c.keys && { keys: shiftKeys(c.keys, d) }), ...(c.markers && { markers: c.markers.map((m) => ({ ...m, at: m.at - d })).filter((m) => m.at >= 0) }) }))
+      }
+      const most = clip.source === undefined || clip.curve ? Infinity : clip.start + Math.floor((clip.source - (clip.in ?? 0)) / speed)
+      const after = isMain(track) && t.magnet ? Infinity : Math.min(Infinity, ...track.clips.filter((c) => c.id !== clip.id && c.start >= end(clip)).map((c) => c.start))
+      const stop = Math.max(clip.start + 1, Math.min(to, most, after))
+      return stop === end(clip) ? t : change(t, clip.id, (c) => ({ ...c, length: stop - c.start }))
+    }
+    case "split": {
+      const at = whole(op.at)
+      const under = (c: Clip) => c.start < at && at < end(c)
+      const named = op.ids ? op.ids.map((id) => open(t, id).clip) : t.tracks.filter((k) => !k.locked).flatMap((k) => k.clips.filter((c) => under(c) && !c.locked))
+      const cutting = named.filter(under)
+      if (!cutting.length) no("no clip is under the playhead")
+      const ids = new Set(cutting.map((c) => c.id)), taken = new Set<string>()
+      return withTracks(t, (k) => ({ ...k, clips: k.clips.flatMap((c) => (ids.has(c.id) ? halves(c, at, fresh(t, c.id, taken)) : [c])) }))
+    }
+    case "remove": {
+      const gone = op.ids.map((id) => open(t, id))
+      if (!gone.length) no("nothing is picked")
+      const ids = new Set(op.ids)
+      return withTracks(t, (k) => {
+        if (!k.clips.some((c) => ids.has(c.id))) return k
+        const out = k.clips.filter((c) => ids.has(c.id))
+        // each later clip moves back by what was removed before it
+        const back = (c: Clip) => (op.ripple && !isMain(k) ? out.filter((o) => o.start < c.start).reduce((n, o) => n + o.length, 0) : 0)
+        return { ...k, clips: k.clips.filter((c) => !ids.has(c.id)).map((c) => (back(c) ? { ...c, start: c.start - back(c) } : c)) }
+      })
+    }
+    case "cut": {
+      const { track, clip } = open(t, op.id)
+      const at = whole(op.at)
+      if (!(clip.start < at && at < end(clip))) no("the playhead isn't on that clip")
+      const [left, right] = halves(clip, at, clip.id)
+      const kept = op.side === "left" ? { ...right, start: clip.start } : left
+      const lost = clip.length - kept.length
+      return withTracks(t, (k) => (k.id !== track.id ? k : { ...k, clips: k.clips.map((c) => (c.id === clip.id ? kept : !isMain(k) && c.start >= end(clip) ? { ...c, start: c.start - lost } : c)) }))
+    }
+    case "duplicate": {
+      const taken = new Set<string>()
+      let next = t
+      for (const id of op.ids) {
+        const { track, clip } = open(t, id)
+        const copy = { ...clip, id: fresh(t, id, taken), start: end(clip), group: undefined }
+        // on a track with no magnet, what comes after makes room for it
+        if (!(isMain(track) && t.magnet)) next = withTracks(next, (k) => (k.id === track.id ? { ...k, clips: k.clips.map((c) => (c.start >= end(clip) ? { ...c, start: c.start + clip.length } : c)) } : k))
+        next = place(next, track.kind, copy, track.id)
+      }
+      return next
+    }
+    case "add": {
+      if (find(t, op.clip.id)) no(`there is already a clip ${op.clip.id}`)
+      if (!(op.clip.length >= 1) || op.clip.start < 0) no("a clip is at least one frame long and starts in the film")
+      return place(t, op.kind, { ...op.clip, start: whole(op.clip.start), length: whole(op.clip.length) }, op.track)
+    }
+    case "set": {
+      const { clip } = open(t, op.id)
+      const { props, curve, ...rest } = op.set
+      let c: Clip = { ...clip, ...rest, ...(props && { props: { ...clip.props, ...props } }) }
+      const source = shown(clip)
+      if (curve !== undefined || (rest.speed !== undefined && rest.speed !== clip.speed)) {
+        if (rest.speed !== undefined && !(rest.speed > 0)) no("a speed is more than 0")
+        const points = curve === undefined ? clip.curve : (curve ?? undefined)
+        // the same frames of source, at the new pace
+        c = { ...c, curve: points, length: Math.max(1, whole(points ? played(points, source) : source / speedOf(c))) }
+      }
+      return change(t, clip.id, () => c)
+    }
+    case "key":
+    case "unkey":
+    case "moveKey":
+    case "ease": {
+      const { clip } = open(t, op.id)
+      const at = whole(op.at)
+      const had = clip.keys?.[op.prop] ?? []
+      const here = had.find((k) => k.at === at)
+      let keys: Key[]
+      if (op.op === "key") {
+        if (at < 0 || at > clip.length) no("a key is inside its clip")
+        keys = [...had.filter((k) => k.at !== at), { at, value: op.value, ...((op.ease ?? here?.ease) !== undefined && { ease: op.ease ?? here?.ease }) }]
+      } else {
+        if (!here) no(`${op.prop} has no key there`)
+        if (op.op === "unkey") keys = had.filter((k) => k.at !== at)
+        else if (op.op === "ease") keys = had.map((k) => (k.at === at ? { ...k, ease: op.ease } : k))
+        else {
+          const to = whole(op.to)
+          if (to < 0 || to > clip.length) no("a key is inside its clip")
+          keys = [...had.filter((k) => k.at !== at && k.at !== to), { ...here!, at: to }]
+        }
+      }
+      const all = { ...clip.keys, [op.prop]: sorted(keys) }
+      if (!keys.length) delete all[op.prop]
+      return change(t, clip.id, (c) => ({ ...c, keys: Object.keys(all).length ? all : undefined }))
+    }
+    case "mark":
+    case "unmark": {
+      const id = op.op === "mark" ? op.marker.id : op.id
+      const put = (ms: Marker[] = []) => [...ms.filter((m) => m.id !== id), ...(op.op === "mark" ? [{ ...op.marker, at: whole(op.marker.at) }] : [])].sort((a, b) => a.at - b.at)
+      if (op.clip) return change(t, open(t, op.clip).clip.id, (c) => ({ ...c, markers: put(c.markers) }))
+      return { ...t, markers: put(t.markers) }
+    }
+    case "track": {
+      if (!t.tracks.some((k) => k.id === op.id)) no(`there is no track ${op.id}`)
+      return withTracks(t, (k) => (k.id === op.id ? { ...k, ...op.set } : k))
+    }
+    case "transition": {
+      const x = op.transition
+      const { track, clip } = open(t, x.after)
+      const next = track.clips.find((c) => c.start === end(clip)) ?? no("a transition sits on a cut: no clip starts where that one ends")
+      // no longer than either clip can give it
+      const length = Math.max(1, Math.min(whole(x.length), clip.length, next.length))
+      return { ...t, transitions: [...t.transitions.filter((o) => o.id !== x.id && o.after !== x.after), { ...x, length }] }
+    }
+    case "untransition":
+      return { ...t, transitions: t.transitions.filter((o) => o.id !== op.id) }
+    case "option":
+      return { ...t, ...op.set }
+  }
+}
+
+/** A clip's keys after its start moved in by `d` frames (out, when negative): they stay at their timeline frames. */
+function shiftKeys(keys: Record<string, Key[]>, d: Frames): Record<string, Key[]> {
+  return Object.fromEntries(Object.entries(keys).map(([p, ks]) => [p, d > 0 ? cutKeys(ks, d)[1] : ks.map((k) => ({ ...k, at: k.at - d }))]))
+}
+
+/** A clip as its two parts either side of timeline frame `at`: the left keeps its id, the right takes `id`. Media
+ *  keep their place in the source, keys stay at their frames, each fade stays on its own end. */
+function halves(c: Clip, at: Frames, id: string): [Clip, Clip] {
+  const d = at - c.start
+  const parts = Object.entries(c.keys ?? {}).map(([p, ks]) => [p, cutKeys(ks, d)] as const)
+  const keysOf = (i: 0 | 1) => {
+    const ks = Object.fromEntries(parts.filter(([, h]) => h[i].length).map(([p, h]) => [p, h[i]]))
+    return Object.keys(ks).length ? ks : undefined
+  }
+  const left: Clip = { ...c, length: d, fadeOut: undefined, keys: keysOf(0), markers: c.markers?.filter((m) => m.at < d) }
+  const right: Clip = { ...c, id, start: at, length: c.length - d, fadeIn: undefined, keys: keysOf(1), markers: c.markers?.filter((m) => m.at >= d).map((m) => ({ ...m, at: m.at - d })), ...(c.in !== undefined && { in: c.in + Math.round(d * speedOf(c)) }) }
+  return [left, right]
+}
+
+// ---------------------------------------------------------------- settling
+
+/** `next` made whole after `op` changed `was`: the main track closed (the magnet), followers carried (linkage),
+ *  tracks in time order, empty made tracks gone, transitions only on cuts that are still there. */
+function settle(was: Timeline, next: Timeline, op: Op): Timeline {
+  const named = new Set("ids" in op && op.ids ? op.ids : "id" in op && typeof op.id === "string" ? [op.id] : [])
+  let t = next
+  if (t.magnet) t = withTracks(t, (k) => (isMain(k) ? { ...k, clips: close(k.clips) } : k))
+  if (was.linkage && t.linkage && op.op !== "option") t = follow(was, t, op, named)
+  t = { ...t, tracks: t.tracks.filter((k) => k.clips.length || was.tracks.some((o) => o.id === k.id)).map((k) => ({ ...k, clips: [...k.clips].sort((a, b) => a.start - b.start) })) }
+  const cut = (x: Transition) => {
+    const at = find(t, x.after)
+    return !!at && at.track.clips.some((c) => c.start === end(at.clip))
+  }
+  return t.transitions.every(cut) ? t : { ...t, transitions: t.transitions.filter(cut) }
+}
+
+/** The main track's clips with no gap, from frame 0. A clip the operation moved takes its place by its middle, so
+ *  it swaps with a neighbour once it is dragged past that neighbour's middle (TL4a). */
+function close(clips: Clip[]): Clip[] {
+  // (clips that don't overlap are in the same order by their middles as by their starts)
+  const key = (c: Clip) => c.start + c.length / 2
+  let at = 0
+  return [...clips]
+    .sort((a, b) => key(a) - key(b))
+    .map((c) => {
+      const moved = c.start === at ? c : { ...c, start: at }
+      at += c.length
+      return moved
+    })
+}
+
+/** What sat over a main clip goes where that clip went, and goes when it is removed (TL4c): picture, text and effect
+ *  clips whose start was inside its span, unless the operation named them itself. */
+function follow(was: Timeline, t: Timeline, op: Op, named: Set<string>): Timeline {
+  const mains = was.tracks.filter(isMain).flatMap((k) => k.clips)
+  if (!mains.length) return t
+  const over = (c: Clip) => mains.find((m) => m.start <= c.start && c.start < end(m))
+  const fate = new Map<string, number | "gone">()
+  for (const k of was.tracks) {
+    if (isMain(k) || k.kind === "sound" || k.locked) continue
+    for (const c of k.clips) {
+      if (named.has(c.id)) continue
+      const m = over(c)
+      if (!m) continue
+      const now = find(t, m.id)
+      if (!now) {
+        if (op.op === "remove") fate.set(c.id, "gone")
+      } else if (now.clip.start !== m.start && op.op !== "trim" && op.op !== "cut") fate.set(c.id, now.clip.start - m.start)
+    }
+  }
+  if (!fate.size) return t
+  return withTracks(t, (k) => ({ ...k, clips: k.clips.filter((c) => fate.get(c.id) !== "gone").map((c) => (typeof fate.get(c.id) === "number" ? { ...c, start: Math.max(0, c.start + (fate.get(c.id) as number)) } : c)) }))
+}

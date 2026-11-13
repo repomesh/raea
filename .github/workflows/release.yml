@@ -63,6 +63,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     # a cold thin-LTO build of raea-cli with the plugin catalog is the long part; GitHub's own limit is 6 hours
     timeout-minutes: 340
+    env:
+      # the compile cache (the "Compile cache" step): an R2 bucket, read and written by every build
+      RELEASE_CACHE_ENDPOINT: ${{ secrets.RELEASE_CACHE_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.RELEASE_CACHE_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.RELEASE_CACHE_SECRET }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,14 +109,27 @@ jobs:
           wait
           echo "kept $keep"
           df -h . | tail -1
+      # The compile cache: sccache on an R2 bucket. GitHub's own cache can't carry a release build: a tag's run reads
+      # only its own tag's caches and the default branch's (so rc3's never reached rc4), and the repo's 10 GB are CI's.
+      # A bucket is read by every tag. A cold build fills it; a candidate after a small change compiles only the crates
+      # that changed and the ones above them. Linking (thin LTO) and build scripts' runs aren't cached. With no secrets
+      # (a fork) the build runs as before, uncached.
+      - name: Compile cache (sccache)
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Use the compile cache
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        run: bash tools/release/compile-cache.sh
       - name: Build
         if: env.RAEA_PROMOTED_FROM == ''
         run: |
           feat=$(bash tools/bevy-plugins.sh features sdk/raea/bench/bevy-plugins)
-          cargo build --profile dist --locked -p raea-cli --bin raea --no-default-features --features "$feat"
-          cargo build --profile dist --locked -p raea-rune-host
-          cargo build --profile dist --locked -p raea-page-host --features window
-          if [ -n "${{ matrix.extra }}" ]; then cargo build --profile dist --locked -p ${{ matrix.extra }}; fi
+          t() { s=$SECONDS; "$@"; echo "::notice::${{ runner.os }} $(( (SECONDS - s) / 60 )) min: ${*:7}"; }
+          t cargo build --profile dist --locked -p raea-cli --bin raea --no-default-features --features "$feat"
+          t cargo build --profile dist --locked -p raea-rune-host
+          t cargo build --profile dist --locked -p raea-page-host --features window
+          if [ -n "${{ matrix.extra }}" ]; then t cargo build --profile dist --locked -p ${{ matrix.extra }}; fi
+          if [ -n "${RUSTC_WRAPPER:-}" ]; then sccache --show-stats; fi
           mkdir ship
           cp target/dist/raea target/dist/${{ matrix.lib }} target/dist/raea-rune-host target/dist/raea-page-host ship/
           if [ -n "${{ matrix.extra }}" ]; then cp target/dist/${{ matrix.extra }} ship/; fi
@@ -179,6 +197,11 @@ jobs:
   windows:
     runs-on: windows-latest
     timeout-minutes: 350
+    env:
+      # the compile cache, as build's
+      RELEASE_CACHE_ENDPOINT: ${{ secrets.RELEASE_CACHE_ENDPOINT }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.RELEASE_CACHE_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.RELEASE_CACHE_SECRET }}
     defaults:
       run:
         shell: bash
@@ -219,14 +242,22 @@ jobs:
           done < <(tr -d '\r' < tools/release/models.tsv)
       # the app targets' hosts a cargo call each: with raea-cli's crates in one call taffy's features unify and
       # rune-taffy doesn't build; raea-perceive (`raea song`'s map, #43) a call of its own too
+      - name: Compile cache (sccache, as build's)
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        uses: mozilla-actions/sccache-action@v0.0.9
+      - name: Use the compile cache
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        run: bash tools/release/compile-cache.sh
       - name: Build
         if: env.RAEA_PROMOTED_FROM == ''
         run: |
           feat=$(bash tools/bevy-plugins.sh features sdk/raea/bench/bevy-plugins)
-          cargo build --profile dist --locked -p raea-cli --bin raea --no-default-features --features "$feat"
-          cargo build --profile dist --locked -p raea-rune-host
-          cargo build --profile dist --locked -p raea-page-host --features window
-          cargo build --profile dist --locked -p raea-perceive
+          t() { s=$SECONDS; "$@"; echo "::notice::Windows $(( (SECONDS - s) / 60 )) min: ${*:7}"; }
+          t cargo build --profile dist --locked -p raea-cli --bin raea --no-default-features --features "$feat"
+          t cargo build --profile dist --locked -p raea-rune-host
+          t cargo build --profile dist --locked -p raea-page-host --features window
+          t cargo build --profile dist --locked -p raea-perceive
+          if [ -n "${RUSTC_WRAPPER:-}" ]; then sccache --show-stats; fi
       - name: The candidate's binaries (tools/release/promoted-bins.sh)
         if: env.RAEA_PROMOTED_FROM != ''
         env:

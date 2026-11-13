@@ -67,6 +67,9 @@ export interface Clip {
   at?: string
   /** markers on the clip itself, in frames from its start (TL2e) */
   markers?: Marker[]
+  /** a compound clip (TL3g): the clips it holds, each with the kind of track it came from, their starts in frames
+   *  from this clip's own start */
+  inside?: { kind: TrackKind; clip: Clip }[]
 }
 
 export interface Track {

@@ -19,6 +19,10 @@ export type Op =
   /** what is left (Q) or right (W) of `at` on a clip removed, the gap closed (TL3e) */
   | { op: "cut"; id: string; side: "left" | "right"; at: Frames }
   | { op: "duplicate"; ids: string[] }
+  /** the clips made one compound clip, where the first of them on the main track (else the first) was (TL3g) */
+  | { op: "compound"; ids: string[]; id?: string; name?: string }
+  /** a compound clip put back as the clips it holds */
+  | { op: "uncompound"; id: string }
   /** a clip put on the timeline: on `track`, else the first of `kind` with room, else a new track of that kind */
   | { op: "add"; kind: TrackKind; clip: Clip; track?: string }
   /** a clip's own fields; `props` are merged into its props; a speed or a curve changes its length (TL6) */
@@ -185,6 +189,25 @@ function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
         if (!(isMain(track) && t.magnet)) next = withTracks(next, (k) => (k.id === track.id ? { ...k, clips: k.clips.map((c) => (c.start >= end(clip) ? { ...c, start: c.start + clip.length } : c)) } : k))
         next = place(next, track.kind, copy, track.id)
       }
+      return next
+    }
+    case "compound": {
+      const members = op.ids.map((id) => open(t, id))
+      if (members.length < 2) no("a compound clip is made of two clips or more")
+      const from = Math.min(...members.map((m) => m.clip.start)), to = Math.max(...members.map((m) => end(m.clip)))
+      const home = (members.find((m) => isMain(m.track)) ?? members[0]).track
+      const ids = new Set(op.ids)
+      const id = op.id ?? fresh(t, `compound-${members[0].clip.id}`)
+      if (find(t, id)) no(`there is already a clip ${id}`)
+      const made: Clip = { id, kind: "compound", name: op.name ?? "Compound clip", start: from, length: to - from, inside: members.map((m) => ({ kind: m.track.kind, clip: { ...m.clip, start: m.clip.start - from } })) }
+      return place(withTracks(t, (k) => ({ ...k, clips: k.clips.filter((c) => !ids.has(c.id)) })), home.kind, made, home.id)
+    }
+    case "uncompound": {
+      const { clip } = open(t, op.id)
+      if (!clip.inside?.length) no(`${clip.name ?? clip.id} isn't a compound clip`)
+      // each clip back where it sat in the compound, on a track of the kind it came from
+      let next = withTracks(t, (k) => ({ ...k, clips: k.clips.filter((c) => c.id !== clip.id) }))
+      for (const m of clip.inside!) next = place(next, m.kind, { ...m.clip, start: clip.start + m.clip.start })
       return next
     }
     case "add": {

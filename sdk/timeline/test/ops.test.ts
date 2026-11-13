@@ -28,6 +28,7 @@ describe("TL0b: an operation is a pure function with an inverse", () => {
     { op: "remove", ids: ["a"] },
     { op: "cut", id: "b", side: "left", at: 50 },
     { op: "duplicate", ids: ["c"] },
+    { op: "compound", ids: ["a", "title"] },
     { op: "set", id: "b", set: { speed: 2 } },
     { op: "key", id: "b", prop: "scale", at: 10, value: 1.2 },
     { op: "mark", marker: { id: "m1", at: 45 } },
@@ -106,6 +107,24 @@ describe("TL3: clips", () => {
 
   test("duplicate puts a copy after the clip", () => {
     expect(spans(done(film(), { op: "duplicate", ids: ["a"] }), "main")).toEqual(["a 0-30", "a+ 30-60", "b 60-120", "c 120-150"])
+  })
+})
+
+describe("TL3g: compound clips", () => {
+  test("clips made one compound clip, and put back as they were", () => {
+    const t = film()
+    const one = done(t, { op: "compound", ids: ["b", "title"], id: "open", name: "Opening" })
+    expect(spans(one, "main")).toEqual(["a 0-30", "open 30-90", "c 90-120"])
+    expect(spans(one, "text-1")).toEqual([])
+    expect(at(one, "open").inside!.map((m) => `${m.kind} ${m.clip.id} ${m.clip.start}+${m.clip.length}`)).toEqual(["main b 0+60", "text title 10+30"])
+    // it moves as one clip; unpacked there, what it held is where the compound is
+    const moved = done(one, { op: "move", ids: ["open"], by: -50 })
+    expect(spans(moved, "main")).toEqual(["open 0-60", "a 60-90", "c 90-120"])
+    const back = done(moved, { op: "uncompound", id: "open" })
+    expect(spans(back, "main")).toEqual(["b 0-60", "a 60-90", "c 90-120"])
+    expect(spans(back, "text-1")).toEqual(["title 10-40"])
+    expect(apply(t, { op: "compound", ids: ["a"] })).toEqual({ ok: false, why: "a compound clip is made of two clips or more" })
+    expect(apply(t, { op: "uncompound", id: "a" })).toEqual({ ok: false, why: "a isn't a compound clip" })
   })
 })
 

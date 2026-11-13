@@ -244,6 +244,21 @@ jobs:
       - name: Toolchain (rust-toolchain.toml's pin)
         if: env.RAEA_PROMOTED_FROM == ''
         run: rustup show active-toolchain || rustup toolchain install
+      # nasm, which rav1d's build script runs: GitHub's Windows image has it, Namespace's doesn't (rc3's dry run there
+      # stopped at "Unable to run nasm: program not found"). Chocolatey when the image has it, else NASM's own zip
+      - name: nasm
+        if: env.RAEA_PROMOTED_FROM == ''
+        run: |
+          if command -v nasm >/dev/null; then nasm -v; exit 0; fi
+          if command -v choco >/dev/null; then
+            choco install nasm -y --no-progress >/dev/null
+            echo "C:\\Program Files\\NASM" >> "$GITHUB_PATH"
+          else
+            v=2.16.03
+            curl -fsSL --retry 3 -o "$RUNNER_TEMP/nasm.zip" "https://www.nasm.us/pub/nasm/releasebuilds/$v/win64/nasm-$v-win64.zip"
+            unzip -q "$RUNNER_TEMP/nasm.zip" -d "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/nasm-$v" >> "$GITHUB_PATH"
+          fi
       # jq for Windows ends -r lines with CRLF, so tools/bevy-plugins.sh read "ahoy\r" and lost its Bevy 0.20 block
       # (feature `ahoy` not found, 11-04); -b writes LF
       - name: jq that writes LF

@@ -1556,6 +1556,61 @@ impl Node {
         self.hit_inner(x, y, scale, &mut None)
     }
 
+    /// raea: whether this box's overflow clip cuts the point away (the point from its border box, unscrolled):
+    /// outside its padding box on an axis it clips. The root element clips nothing (its overflow is the viewport's).
+    fn clips_away(&self, x: f32, y: f32) -> bool {
+        use style::values::computed::Overflow;
+        let is_root_element = self.parent.and_then(|p| self.tree().get(p)).is_some_and(|p| p.parent.is_none());
+        if is_root_element {
+            return false;
+        }
+        let Some(styles) = self.primary_styles() else { return false };
+        let cx = !matches!(styles.clone_overflow_x(), Overflow::Visible);
+        let cy = !matches!(styles.clone_overflow_y(), Overflow::Visible);
+        let (size, b) = (self.final_layout().size, self.final_layout().border);
+        (cx && (x < b.left || x > size.width - b.right)) || (cy && (y < b.top || y > size.height - b.bottom))
+    }
+
+    /// raea: whether a hoisted child (a z-index's, hit from its stacking-context root, this node) is cut away at
+    /// the point (in this node's coordinates, as the hoisted children's positions are): by this node's own clip
+    /// (`cut`) or by one of the boxes between along its containing blocks, the clips blitz-paint draws it under
+    /// (`hoisted_clips`). A box whose containing blocks never reach this node is painted from above it, under none
+    /// of these clips (blitz-paint's `from_above`), and is never cut here. Transforms on the boxes between are not
+    /// read, as the painter's clips don't read them.
+    fn hoisted_cut(&self, child: NodeId, x: f32, y: f32, cut: bool) -> bool {
+        let tree = self.tree();
+        let mut between = Vec::new();
+        let mut current = tree.get(child).and_then(|n| n.containing_block());
+        loop {
+            match current {
+                Some(id) if id == self.id => break,
+                Some(id) => {
+                    between.push(id);
+                    current = tree.get(id).and_then(|n| n.containing_block());
+                }
+                None => return false,
+            }
+        }
+        if cut {
+            return true;
+        }
+        between.iter().any(|&id| {
+            let Some(node) = tree.get(id) else { return false };
+            // its border box from this node: its place and those of the boxes it's in, less what they're scrolled by
+            let at = node.final_layout().location;
+            let (mut ax, mut ay) = (at.x, at.y);
+            let mut up = node.containing_block();
+            while let Some(a) = up.filter(|a| *a != self.id) {
+                let Some(an) = tree.get(a) else { break };
+                let (l, sc) = (an.final_layout().location, an.scroll_offset());
+                ax += l.x - sc.x as f32;
+                ay += l.y - sc.y as f32;
+                up = an.containing_block();
+            }
+            node.clips_away(x - ax, y - ay)
+        })
+    }
+
     /// [`hit`](Self::hit), also resolving the innermost overlay scrollbar
     /// thumb under the point into `scrollbar` during the same descent (so
     /// thumb hit-testing shares the exact coordinate handling — transforms
@@ -1630,6 +1685,11 @@ impl Node {
             return None;
         }
 
+        // raea: a box that clips its overflow takes no pointer for what it cuts away, as it draws none of it
+        // (blitz-paint's `should_clip`). Blitz tested the children wherever they overflowed to, so a press on the
+        // page around a zoomed canvas landed on the card that would have lain there.
+        let cut = self.clips_away(x - self.scroll_offset().x as f32, y - self.scroll_offset().y as f32);
+
         // Descendants overwrite, so the innermost scroll container's thumb
         // wins. Thumb coords are border-box relative (unscrolled).
         if matches_self
@@ -1656,6 +1716,9 @@ impl Node {
                     let Some(child) = self.tree().get(hoisted_child.node_id) else {
                         continue;
                     };
+                    if self.hoisted_cut(hoisted_child.node_id, x, y, cut) {
+                        continue;
+                    }
                     let pos = hoisted_child.position(self.tree(), self.id);
                     let x = x - pos.x;
                     let y = y - pos.y;
@@ -1668,6 +1731,9 @@ impl Node {
 
         // Call `.hit()` on each child in turn. If any return `Some` then return that value. Else return `Some(self.id).
         for child_id in self.paint_children.borrow().iter().flatten().rev() {
+            if cut {
+                break;
+            }
             let Some(child) = self.tree().get(*child_id) else {
                 continue;
             };
@@ -1699,6 +1765,9 @@ impl Node {
                     let Some(child) = self.tree().get(hoisted_child.node_id) else {
                         continue;
                     };
+                    if self.hoisted_cut(hoisted_child.node_id, x, y, cut) {
+                        continue;
+                    }
                     let pos = hoisted_child.position(self.tree(), self.id);
                     let x = x - pos.x;
                     let y = y - pos.y;

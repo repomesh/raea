@@ -99,6 +99,38 @@ describe("P18 DOM surface", () => {
     expect(ops.some((o: any) => o.op === "update" && o.set?.scrollTop === 400)).toBe(true);
   });
 
+  test("a box with its own z-index stays under the overflow clip of the box it's in; a fixed one doesn't", () => {
+    const host = fresh();
+    function App() {
+      return (
+        <div data-testid="root">
+          <button data-testid="side" />
+          <div data-testid="stage" style={{ overflow: "hidden" }}>
+            <div data-testid="view" style={{ zIndex: 2 }}>
+              <div data-testid="card" style={{ zIndex: 3, overflow: "hidden" }}>
+                <img data-testid="pic" />
+              </div>
+            </div>
+            <div data-testid="menu" style={{ position: "fixed", zIndex: 5 }} />
+          </div>
+        </div>
+      );
+    }
+    mount(<App />, 0, { dom: true });
+    // the card is zoomed past the stage's edge, over the button beside the stage; the menu is placed there on purpose
+    const z = (n: number) => [...Array(12).fill(0), n];
+    const boxes: Record<string, number[]> = { root: [0, 0, 800, 600], side: [0, 0, 200, 600], stage: [200, 0, 600, 600], view: [200, 0, 1600, 1200, ...z(2)], card: [100, 100, 400, 300, ...z(3)], pic: [100, 100, 400, 300, ...z(3)], menu: [20, 500, 100, 40, ...z(5)] };
+    const n: number[] = [];
+    for (const [t, b] of Object.entries(boxes)) n.push(host.tid(t), ...b, ...Array(17 - b.length).fill(0));
+    layout(JSON.stringify({ vw: 800, vh: 600, dpr: 2, n }));
+    const at = (x: number, y: number) => g.document.elementFromPoint(x, y)?.getAttribute("data-testid");
+    expect(at(150, 150)).toBe("side");
+    // nor do the card's own children, though the card clips too: its clip is cut to the stage's, not put in its place
+    expect(at(300, 150)).toBe("pic");
+    expect(at(700, 500)).toBe("view");
+    expect(at(50, 510)).toBe("menu");
+  });
+
   test("a press goes where the host's cascade says: a child a stylesheet gives pointer events back, under a pointer-events-none layer", () => {
     const host = fresh();
     const log: string[] = [];

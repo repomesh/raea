@@ -160,6 +160,9 @@ export function focusTo(el: Element_, tellHost: boolean) {
   transition(el, tellHost);
 }
 
+/** A clip rectangle [x0, y0, x1, y1] cut to the one it's under (none: itself). */
+const within = (own: number[], under: number[] | null) => (under ? [Math.max(own[0], under[0]), Math.max(own[1], under[1]), Math.min(own[2], under[2]), Math.min(own[3], under[3])] : own);
+
 /** The deepest element under (x, y), searched from `from` down: the topmost box that has the point (a higher z,
  *  then the later in the tree), past what clips it and what takes no pointer events. */
 export function hit(from: Node_, x: number, y: number): Element_ | null {
@@ -184,15 +187,25 @@ export function hit(from: Node_, x: number, y: number): Element_ | null {
           bestZ = kz;
           bestOrder = i;
         }
-        if (c.overflowX !== "visible" || c.overflowY !== "visible") kclip = [b[0], b[1], b[0] + b[2], b[1] + b[3]];
+        // its own clip inside the one it's under, never in its place: a card that clips (rounded corners) and lies
+        // past its canvas's edge would otherwise hand its children the whole of its own box
+        if (c.overflowX !== "visible" || c.overflowY !== "visible") kclip = within([b[0], b[1], b[0] + b[2], b[1] + b[3]], clip);
       } else if (b && c && kz !== z) {
+        // a box with its own z-index is still under the clips of the boxes it's in: without them a card zoomed past
+        // its canvas's edge took the presses on the page around the canvas (its clip was dropped here). A fixed box
+        // is placed against the viewport and is under none. Not read: an absolute box whose containing block is
+        // above the clipping box escapes that clip in CSS and stays under it here; a fixed box under a transformed
+        // ancestor is clipped in CSS and isn't here. The host's hit test (blitz-dom's hit_inner) reads both for a
+        // z-indexed box, and its answer wins where the two differ (pointed, below).
+        const under = c.position === "fixed" ? null : clip;
         const inside = x >= b[0] && x < b[0] + b[2] && y >= b[1] && y < b[1] + b[3];
-        if (inside && c.pointerEvents !== "none" && (kz > bestZ || (kz === bestZ && i > bestOrder))) {
+        const inClip = !under || (x >= under[0] && x < under[2] && y >= under[1] && y < under[3]);
+        if (inside && inClip && c.pointerEvents !== "none" && (kz > bestZ || (kz === bestZ && i > bestOrder))) {
           best = k;
           bestZ = kz;
           bestOrder = i;
         }
-        kclip = c.overflowX !== "visible" || c.overflowY !== "visible" ? [b[0], b[1], b[0] + b[2], b[1] + b[3]] : null;
+        kclip = c.overflowX !== "visible" || c.overflowY !== "visible" ? within([b[0], b[1], b[0] + b[2], b[1] + b[3]], under) : under;
       }
       walk(k, kclip, kz);
     }

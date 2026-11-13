@@ -123,6 +123,7 @@ pub fn bundle_fresh(tsx: &Path, out_js: &Path, o: &CompOpts, portable: Option<&P
     let work = std::env::temp_dir().join(format!("raea-cli-b{}", std::process::id()));
     remove_work(&work);
     copy_dir(&dir, &work.join("src"), 0)?;
+    drop_tsconfigs(&work.join("src"), 0);
     let motion_src = raea_io_home::home().join("sdk/raea/src").canonicalize().map_err(|e| format!("raea/motion/src: {e}"))?;
     copy_dir(&motion_src, &work.join("motion"), 0)?;
     let sdks = sdks();

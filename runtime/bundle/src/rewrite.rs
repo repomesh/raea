@@ -16,6 +16,25 @@ pub fn copy_dir(from: &Path, to: &Path, depth: usize) -> R<()> {
     Ok(())
 }
 
+/// The copy of an edit's folder without its own tsconfig.json and jsconfig.json files: the work folder's is the one a
+/// bundle resolves by. A project's own (raea writes one into every new project, for its editor) is the nearest to its
+/// sources, so the bundler read it in place of the work folder's: its `paths` name no live runtime, a played
+/// composition's `react` was the engine's React, and `raea play`, the app's stage and every still drawn by playing
+/// threw "__at is not a function" before the first frame (0.1.2; a render, which needs no such path, went through).
+pub fn drop_tsconfigs(dir: &Path, depth: usize) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            if depth < 6 {
+                drop_tsconfigs(&p, depth + 1);
+            }
+        } else if matches!(e.file_name().to_str(), Some("tsconfig.json" | "jsconfig.json")) {
+            let _ = std::fs::remove_file(&p);
+        }
+    }
+}
+
 pub const MEDIA_EXTS: [&str; 10] = ["mp4", "mov", "m4v", "mp3", "wav", "m4a", "png", "jpg", "webp", "gif"];
 
 /// The edit's source with its imports pointed at the bundle's copy of the SDK (its package name, a subpath such as /3d,

@@ -71,3 +71,21 @@ fn outside_copies_what_the_edit_imports_beyond_its_folder() {
     assert!(e.contains("lib/c.ts") && e.contains("outside raea's home"), "{e}");
     std::fs::remove_dir_all(&t).unwrap();
 }
+
+#[test]
+fn a_project_s_own_tsconfig_is_not_in_the_work_copy() {
+    // raea writes a tsconfig.json into every new project: copied with the sources, it shadowed the work folder's
+    let d = std::env::temp_dir().join(format!("raea-bundle-tsconfig-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(d.join("from/components")).unwrap();
+    for f in ["from/tsconfig.json", "from/components/jsconfig.json", "from/a.tsx", "from/components/data.json"] {
+        std::fs::write(d.join(f), "{}").unwrap();
+    }
+    copy_dir(&d.join("from"), &d.join("to"), 0).unwrap();
+    drop_tsconfigs(&d.join("to"), 0);
+    assert!(!d.join("to/tsconfig.json").exists() && !d.join("to/components/jsconfig.json").exists());
+    assert!(d.join("to/a.tsx").exists() && d.join("to/components/data.json").exists());
+    // the project's own files are untouched
+    assert!(d.join("from/tsconfig.json").exists());
+    let _ = std::fs::remove_dir_all(&d);
+}

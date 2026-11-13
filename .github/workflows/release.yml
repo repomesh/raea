@@ -117,11 +117,11 @@ jobs:
       # A bucket is read by every tag. A cold build fills it; a candidate after a small change compiles only the crates
       # that changed and the ones above them. Linking (thin LTO) and build scripts' runs aren't cached. With no secrets
       # (a fork) the build runs as before, uncached.
-      # the build folder and cargo's downloads kept between runs on the runner's cache volume (Namespace: vars
-      # RELEASE_RUNNER_CACHE=1 when the runner labels attach one), so a candidate rebuilds only what changed and links;
+      # the build folder and cargo's downloads kept between runs on the runner's cache volume (a Namespace runner,
+      # whose labels attach one), so a candidate rebuilds only what changed and links;
       # sccache below still serves the workspace's own crates, which a fresh checkout's file times mark as changed
       - name: The build folder, kept on the runner's cache volume
-        if: env.RAEA_PROMOTED_FROM == '' && vars.RELEASE_RUNNER_CACHE == '1'
+        if: env.RAEA_PROMOTED_FROM == '' && startsWith(runner.name, 'nsc-')
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |
@@ -167,7 +167,7 @@ jobs:
       # the packing and its checks need only ship/, and macos-15's disk ran out packing rc1 with target/ kept
       - name: Free the build's disk
         # not the cache volume's build folder, which the next candidate starts from (a bind mount on Linux)
-        if: vars.RELEASE_RUNNER_CACHE != '1'
+        if: ${{ !startsWith(runner.name, 'nsc-') }}
         run: |
           df -h . | tail -1
           rm -rf target
@@ -269,7 +269,7 @@ jobs:
       # the app targets' hosts a cargo call each: with raea-cli's crates in one call taffy's features unify and
       # rune-taffy doesn't build; raea-perceive (`raea song`'s map, #43) a call of its own too
       - name: The build folder, kept on the runner's cache volume (as build's)
-        if: env.RAEA_PROMOTED_FROM == '' && vars.RELEASE_RUNNER_CACHE == '1'
+        if: env.RAEA_PROMOTED_FROM == '' && startsWith(runner.name, 'nsc-')
         uses: namespacelabs/nscloud-cache-action@v1
         with:
           path: |

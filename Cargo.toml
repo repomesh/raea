@@ -103,6 +103,7 @@ members = [
     "systems/page-net",
     "systems/page-ops",
     "systems/frame",
+    "systems/hold",
     "systems/layers",
     "systems/splat",
     "systems/sprite",

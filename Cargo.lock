@@ -14767,6 +14767,7 @@ dependencies = [
  "raea-sys-framepass",
  "raea-sys-grass",
  "raea-sys-grid",
+ "raea-sys-hold",
  "raea-sys-look",
  "raea-sys-matchmove",
  "raea-sys-material",
@@ -15178,6 +15179,7 @@ dependencies = [
  "raea-runtime-react",
  "raea-runtime-sound",
  "raea-sys-frame",
+ "raea-sys-hold",
  "raea-sys-mix",
  "serde_json",
  "twox-hash",
@@ -15716,6 +15718,14 @@ dependencies = [
  "bevy",
  "raea-core-program",
  "raea-sys-fog",
+ "raea-sys-frame",
+]
+
+[[package]]
+name = "raea-sys-hold"
+version = "0.1.0"
+dependencies = [
+ "bevy",
  "raea-sys-frame",
 ]
 

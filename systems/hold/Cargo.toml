@@ -1,0 +1,12 @@
+[package]
+name = "raea-sys-hold"
+version = "0.1.0"
+edition = "2024"
+license = "FSL-1.1-ALv2"
+publish = false
+description = "A part of a 3D scene held where a hand has it while it is dragged, where a part stands, and the scene drawn as wireframe (docs/scene-feed.feature SF4c, SF4d, SF3e)"
+
+[dependencies]
+bevy = { version = "=0.20.0", default-features = false, features = ["std", "default_app", "3d_bevy_render"] }
+# a part's layer key: how the app names the part it holds
+raea-sys-frame = { path = "../frame" }

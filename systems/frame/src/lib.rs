@@ -22,8 +22,6 @@ pub mod pick;
 pub mod shadow;
 /// a free camera over the scene (docs/preview.feature PV1c)
 pub mod view;
-/// a part held where a hand has it, and the scene as wireframe (docs/scene-feed.feature SF4c, SF3e)
-pub mod hold;
 /// pipelined updates: the render world drawing the last frame while the main world runs this one
 pub mod pipe;
 // the edit's rows as entities, each column a component of its own, found by kind and id

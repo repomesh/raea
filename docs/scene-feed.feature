@@ -29,7 +29,7 @@ Feature: Scene: a feed item that is raea 3D looked at from inside
   Background:
     Given the app's code is apps/app (raea-feed): src/scene, src/detail/views/Scene.tsx, host/scene, samples/scene
     And the inspector is built on stage.show, stage.pick, stage.view, stage.locate, stage.seek and stage.play as
-      docs/preview.feature PV1 left them, and on three calls added for it (raea-sys-frame hold.rs, raea-runtime-live
+      docs/preview.feature PV1 left them, and on three calls added for it (raea-sys-hold, raea-runtime-live
       pick3d.rs, raea-page-stage): stage.part (where a part stands), stage.hold (a part drawn where a drag has it)
       and stage.wire (wireframe). On a raea without them it still works: handles from the code's numbers, no live
       drag, and Wireframe says it can't yet

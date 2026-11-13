@@ -19,6 +19,7 @@ raea-io-trace = { path = "../../io/trace" }
 raea-core-program = { path = "../../core/program" }
 raea-sys-mix = { path = "../../systems/mix" }
 raea-sys-frame = { path = "../../systems/frame" }
+raea-sys-hold = { path = "../../systems/hold" }
 bevy = { version = "=0.20.0", default-features = false, features = ["std", "default_app"] }
 serde_json = "1"
 wgpu = "=30.0.1"

@@ -10,6 +10,21 @@ pub(super) fn settle(answer: raea_runtime_js::calls::Answer, r: Result<Value, St
     }
 }
 
+/// A call for the stage's thread to answer; `idle` is the answer while the stage shows nothing.
+fn ask(w: &World, answer: raea_runtime_js::calls::Answer, idle: Value, cmd: impl FnOnce(raea_runtime_js::calls::Answer) -> Cmd) {
+    let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
+    if let Some(tx) = tx {
+        let _ = tx.send(cmd(answer));
+        return;
+    }
+    answer.ok(idle)
+}
+
+/// An argument that is exactly N numbers.
+fn numbers<const N: usize>(a: &Value, k: &str) -> Option<[f32; N]> {
+    serde_json::from_value::<Vec<f32>>(a.get(k)?.clone()).ok()?.try_into().ok()
+}
+
 /// The page's host calls (the module's list).
 pub(super) fn calls(mut calls: ResMut<HostCalls>) {
     let num = |a: &Value, k: &str| a.get(k).and_then(Value::as_f64);
@@ -86,41 +101,19 @@ pub(super) fn calls(mut calls: ResMut<HostCalls>) {
                 None => answer.err("the stage shows nothing"),
             }
         })
-        .on("stage.part", move |w, a, answer| {
-            let key = a.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
-            let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
-            match tx {
-                Some(tx) => {
-                    let _ = tx.send(Cmd::Part(key, answer));
-                }
-                None => answer.ok(Value::Null),
-            }
-        })
+        .on("stage.part", move |w, a, answer| ask(w, answer, Value::Null, |to| Cmd::Part(a["key"].as_str().unwrap_or_default().to_string(), to)))
         .on("stage.hold", move |w, a, answer| {
-            let key = a.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
-            let list = |k: &str, n: usize| a.get(k).and_then(Value::as_array).map(|v| v.iter().filter_map(Value::as_f64).map(|x| x as f32).collect::<Vec<_>>()).filter(|v| v.len() == n && v.iter().all(|x| x.is_finite()));
-            let to = match (a.get("release").and_then(Value::as_bool), list("translation", 3), list("rotation", 4), list("scale", 3)) {
-                (Some(true), ..) => None,
-                (_, Some(t), Some(r), Some(s)) => Some(([t[0], t[1], t[2]], [r[0], r[1], r[2], r[3]], [s[0], s[1], s[2]])),
+            let place = match (a["release"] == true, numbers(&a, "translation"), numbers(&a, "rotation"), numbers(&a, "scale")) {
+                (true, ..) => None,
+                (_, Some(t), Some(r), Some(s)) => Some((t, r, s)),
                 _ => return answer.err("stage.hold takes a key with translation [x, y, z], rotation [x, y, z, w] and scale [x, y, z], or release: true"),
             };
-            let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
-            match tx {
-                Some(tx) => {
-                    let _ = tx.send(Cmd::Hold(key, to, answer));
-                }
-                None => answer.ok(json!(false)),
-            }
+            let key = a.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
+            ask(w, answer, json!(false), |to| Cmd::Hold(key, place, to))
         })
         .on("stage.wire", move |w, a, answer| {
             let on = a.get("on").and_then(Value::as_bool).unwrap_or(true);
-            let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
-            match tx {
-                Some(tx) => {
-                    let _ = tx.send(Cmd::Wire(on, answer));
-                }
-                None => answer.ok(json!(false)),
-            }
+            ask(w, answer, json!(false), |to| Cmd::Wire(on, to))
         })
         .on("stage.inspect", move |w, a, answer| {
             let id = a.get("id").and_then(Value::as_u64).unwrap_or(0);

@@ -45,7 +45,7 @@ fn meshes(
     q: Query<(Entity, &Mesh3d, &MeshMaterial3d<StandardMaterial>, Has<bevy::mesh::skinning::SkinnedMesh>, Has<bevy::mesh::morph::MeshMorphWeights>), Pending>,
     mats: Res<Assets<StandardMaterial>>,
     mut assets: ResMut<Assets<Mesh>>,
-    mut copies: Local<HashMap<AssetId<Mesh>, Option<Handle<Mesh>>>>,
+    mut copies: Local<HashMap<(AssetId<Mesh>, bool), Option<Handle<Mesh>>>>,
     mut said: Local<bool>,
 ) {
     if on.is_empty() {
@@ -73,16 +73,18 @@ fn meshes(
         }
         // each mesh's traceable form, made once: itself when it's in Solari's layout, else a copy; None when it can't
         // be traced (not triangles, no normals, or its data only on the GPU)
-        let h = match copies.get(&m.0.id()) {
+        // (a copy by whether its material has a normal map: only that reads the tangents)
+        let mapped = mats.get(&mat.0).is_some_and(|m| m.normal_map_texture.is_some());
+        let h = match copies.get(&(m.0.id(), mapped)) {
             Some(h) => h.clone(),
             None => {
-                let Some(t) = assets.get(&m.0).map(traceable) else { continue };
+                let Some(t) = assets.get(&m.0).map(|src| traceable(src, mapped)) else { continue };
                 let h = match t {
                     Some(Traceable::Same) => Some(m.0.clone()),
                     Some(Traceable::Copy(mesh)) => Some(assets.add(mesh)),
                     None => None,
                 };
-                copies.insert(m.0.id(), h.clone());
+                copies.insert((m.0.id(), mapped), h.clone());
                 h
             }
         };
@@ -104,7 +106,11 @@ enum Traceable {
     Copy(Mesh),
 }
 
-fn traceable(src: &Mesh) -> Option<Traceable> {
+/// `src` in Solari's layout. A mesh with no tangents of its own gets MikkTSpace's only when `mapped` (its material has
+/// a normal map: the one thing Solari reads a tangent for, scene/bindings.wesl); else any unit vector across each
+/// normal does, as the layout needs the attribute. MikkTSpace on every traced mesh was most of a ray-traced render's
+/// wait for its models (one thread, 0.36 s of a 3.8 s render of a 2.5 s shot).
+fn traceable(src: &Mesh, mapped: bool) -> Option<Traceable> {
     if src.primitive_topology() != PrimitiveTopology::TriangleList {
         return None;
     }
@@ -133,7 +139,12 @@ fn traceable(src: &Mesh) -> Option<Traceable> {
     out.insert_indices(Indices::U32(idx));
     match src.attribute(Mesh::ATTRIBUTE_TANGENT) {
         Some(t) => out.insert_attribute(Mesh::ATTRIBUTE_TANGENT, t.clone()),
-        None => out.generate_tangents().ok()?,
+        None if mapped => out.generate_tangents().ok()?,
+        None => {
+            let VertexAttributeValues::Float32x3(normals) = out.attribute(Mesh::ATTRIBUTE_NORMAL)? else { return None };
+            let across: Vec<[f32; 4]> = normals.iter().map(|n| Vec3::from(*n).any_orthonormal_vector().extend(1.0).to_array()).collect();
+            out.insert_attribute(Mesh::ATTRIBUTE_TANGENT, across);
+        }
     }
     Some(Traceable::Copy(out))
 }
@@ -151,6 +162,24 @@ mod tests {
         m
     }
 
+    /// A mesh with no tangents and no normal map gets a unit tangent across each normal without MikkTSpace (which
+    /// needs UVs' derivatives and was most of a render's wait for its models); with a normal map, MikkTSpace's.
+    #[test]
+    fn a_mesh_without_a_normal_map_gets_tangents_across_its_normals() {
+        let tangents = |mapped| match traceable(&quad(RenderAssetUsages::default()), mapped) {
+            Some(Traceable::Copy(m)) => match m.attribute(Mesh::ATTRIBUTE_TANGENT) {
+                Some(VertexAttributeValues::Float32x4(t)) => t.clone(),
+                _ => panic!("no tangents"),
+            },
+            _ => panic!("not a copy"),
+        };
+        for t in tangents(false) {
+            let v = Vec3::new(t[0], t[1], t[2]);
+            assert!((v.length() - 1.0).abs() < 1e-5 && v.dot(Vec3::Z).abs() < 1e-5 && t[3] == 1.0, "{t:?}");
+        }
+        assert_eq!(tangents(true).len(), 3);
+    }
+
     #[test]
     fn an_additive_or_multiplying_surface_is_not_traced() {
         // additive dust cards traced as opaque shaded a sunlit wall; opaque, masked and blended surfaces stay traced
@@ -163,9 +192,9 @@ mod tests {
         // raea-sys-grass's blades: RENDER_WORLD only, their data taken when Bevy extracts them (RR0's film panicked on them)
         let mut grass = quad(RenderAssetUsages::RENDER_WORLD);
         let _ = grass.take_gpu_data().expect("a fresh mesh's data can be taken");
-        assert!(traceable(&grass).is_none());
+        assert!(traceable(&grass, true).is_none());
         // a mesh still in the main world is copied into Solari's layout, its u16 indices widened
-        match traceable(&quad(RenderAssetUsages::default())) {
+        match traceable(&quad(RenderAssetUsages::default()), true) {
             Some(Traceable::Copy(m)) => assert!(matches!(m.indices(), Some(Indices::U32(v)) if v == &vec![0, 1, 2])),
             _ => panic!("a readable triangle mesh is traceable"),
         }

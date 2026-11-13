@@ -177,6 +177,7 @@ component, whose box it can't reach, is placed inside a full-frame layer.
 | `scale` | `number` | how much bigger (2) or smaller (0.5), about its centre |
 | `rotate` | `number` | a turn, in degrees, about its centre |
 | `opacity` | `number` | 0 (gone) to 1 (as it was), times its own opacity |
+| `keys` | `Partial<Record<NudgeProp, NudgeKey[]>>` | any of the above over time: its keys, each [frame, value, ease?], in frames from where this part's time starts (its <Sequence>'s first frame). A keyed property's still value is ignored. |
 | `children` | `ReactNode` | the part it places: an element, or a component, which moves inside a full-frame layer |
 
 ### `Overlay`

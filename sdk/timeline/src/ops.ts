@@ -114,10 +114,10 @@ function place(t: Timeline, kind: TrackKind, clip: Clip, prefer?: string): Timel
 function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
   switch (op.op) {
     case "move": {
-      const by = whole(op.by)
       const moving = op.ids.map((id) => open(t, id))
       if (!moving.length) no("nothing is picked")
-      if (Math.min(...moving.map((m) => m.clip.start)) + by < 0) no("it would start before the film does")
+      // no further back than the film's first frame: a drag past it stops there
+      const by = Math.max(whole(op.by), -Math.min(...moving.map((m) => m.clip.start)))
       const ids = new Set(op.ids)
       // lifted off their tracks, then each put down where it lands: its own track, the one named, or one with room
       let next = withTracks(t, (k) => ({ ...k, clips: k.clips.filter((c) => !ids.has(c.id)) }))

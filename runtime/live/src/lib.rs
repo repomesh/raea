@@ -16,6 +16,7 @@ mod open;
 mod sound;
 mod pointer;
 mod pick3d;
+pub use pick3d::want_wire;
 pub use sound::warm_audio;
 mod draw;
 

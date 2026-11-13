@@ -189,6 +189,10 @@ impl Engine {
                 let backend = raea_io_media::backend(&media_backend())?;
                 app.insert_non_send(Media { backend, decoders: HashMap::new(), dir: dir.to_path_buf() });
         }
+        // the app's stage can draw a scene as wireframe (docs/scene-feed.feature SF3e): only where it asked
+        if live {
+            raea_sys_frame::hold::add_wire(&mut app);
+        }
         mem_mark("engine: plugins built (DefaultPlugins, the render device)");
         Ok(Opening { app, prog: prog.clone(), inserted: inserted.to_vec(), dir: dir.to_path_buf(), timeline, live })
     }
@@ -223,6 +227,8 @@ impl Engine {
         app.insert_resource(TagRowTarget(target.clone())).init_resource::<ViewBox>().add_systems(PostUpdate, tag_row_view.before(bevy::camera::CameraUpdateSystems));
         // a free camera over the scene (docs/preview.feature PV1c): off until a preview asks for one
         app.init_resource::<raea_sys_frame::view::FreeView>().add_systems(PostUpdate, raea_sys_frame::view::apply.before(bevy::transform::TransformSystems::Propagate));
+        // a part held where a hand has it (docs/scene-feed.feature SF4c): nothing until an inspector holds one
+        app.init_resource::<raea_sys_frame::hold::Held>().add_systems(PostUpdate, raea_sys_frame::hold::apply.before(bevy::transform::TransformSystems::Propagate));
         // without native nothing ever comes back (frames are read back only to be encoded or analysed)
         let nv12 = !STILLS_RGBA.load(std::sync::atomic::Ordering::Relaxed) && std::env::var("RAEA_READBACK").map(|v| v != "rgba").unwrap_or(true);
         // stills through the GPU composite: its RGBA words and the tag word, unpadded

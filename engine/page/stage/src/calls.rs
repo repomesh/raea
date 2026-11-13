@@ -86,6 +86,42 @@ pub(super) fn calls(mut calls: ResMut<HostCalls>) {
                 None => answer.err("the stage shows nothing"),
             }
         })
+        .on("stage.part", move |w, a, answer| {
+            let key = a.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
+            let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
+            match tx {
+                Some(tx) => {
+                    let _ = tx.send(Cmd::Part(key, answer));
+                }
+                None => answer.ok(Value::Null),
+            }
+        })
+        .on("stage.hold", move |w, a, answer| {
+            let key = a.get("key").and_then(Value::as_str).unwrap_or_default().to_string();
+            let list = |k: &str, n: usize| a.get(k).and_then(Value::as_array).map(|v| v.iter().filter_map(Value::as_f64).map(|x| x as f32).collect::<Vec<_>>()).filter(|v| v.len() == n && v.iter().all(|x| x.is_finite()));
+            let to = match (a.get("release").and_then(Value::as_bool), list("translation", 3), list("rotation", 4), list("scale", 3)) {
+                (Some(true), ..) => None,
+                (_, Some(t), Some(r), Some(s)) => Some(([t[0], t[1], t[2]], [r[0], r[1], r[2], r[3]], [s[0], s[1], s[2]])),
+                _ => return answer.err("stage.hold takes a key with translation [x, y, z], rotation [x, y, z, w] and scale [x, y, z], or release: true"),
+            };
+            let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
+            match tx {
+                Some(tx) => {
+                    let _ = tx.send(Cmd::Hold(key, to, answer));
+                }
+                None => answer.ok(json!(false)),
+            }
+        })
+        .on("stage.wire", move |w, a, answer| {
+            let on = a.get("on").and_then(Value::as_bool).unwrap_or(true);
+            let tx = w.resource::<Stage>().tx.lock().unwrap().clone();
+            match tx {
+                Some(tx) => {
+                    let _ = tx.send(Cmd::Wire(on, answer));
+                }
+                None => answer.ok(json!(false)),
+            }
+        })
         .on("stage.inspect", move |w, a, answer| {
             let id = a.get("id").and_then(Value::as_u64).unwrap_or(0);
             let tx = w.resource::<Stage>().tx.lock().unwrap().clone();

@@ -34,6 +34,10 @@ impl Live {
             None => json!({"owner": "", "props": {}, "text": "", "kind": "mesh"}),
         };
         out["entity"] = json!(hit.entity.to_bits());
+        // where it stands (docs/scene-feed.feature SF4c): what its handles are drawn from
+        if let Some(w) = self.scene.as_mut().map(|e| e.world_mut()) {
+            out["placed"] = placed_json(raea_sys_frame::hold::placed(w, hit.entity));
+        }
         // how a part with no key is asked for again (locate): its entity, as text (its bits don't fit a page's number)
         out["entity_key"] = json!(format!("entity:{}", hit.entity.to_bits()));
         for (k, v) in [("part", json!(true)), ("key", json!(hit.key)), ("name", json!(hit.name)), ("rect", json!([r[0] as f64 * w, r[1] as f64 * h, r[2] as f64 * w, r[3] as f64 * h])), ("point", json!(hit.point.to_array())), ("distance", json!(hit.distance))] {
@@ -77,6 +81,40 @@ impl Live {
                 Some(e)
             }
         }
+    }
+
+    /// The part a key names, as it stands now: its entity (as "entity:BITS") and where it stands. None when nothing
+    /// drawn has that key. A picked part asked for again after the scene's code changed (a new world, new entities).
+    pub fn part(&mut self, key: &str) -> Option<Value> {
+        let w = self.scene.as_mut()?.world_mut();
+        let e = raea_sys_frame::hold::part_of(w, key)?;
+        Some(json!({"entity_key": format!("entity:{}", e.to_bits()), "placed": placed_json(raea_sys_frame::hold::placed(w, e))}))
+    }
+
+    /// The part a key names held at a place in its parent's space (translation, rotation as a quaternion, scale), or
+    /// let go of (None): drawn there until then, its code untouched. False with no 3D or no such part.
+    pub fn hold(&mut self, key: &str, to: Option<([f32; 3], [f32; 4], [f32; 3])>) -> bool {
+        let Some(w) = self.scene.as_mut().map(|e| e.world_mut()) else { return false };
+        let Some(e) = raea_sys_frame::hold::part_of(w, key) else { return false };
+        let Some(mut held) = w.get_resource_mut::<raea_sys_frame::hold::Held>() else { return false };
+        match to {
+            Some((t, r, s)) => {
+                held.parts.insert(e, Transform { translation: Vec3::from(t), rotation: Quat::from_array(r).normalize(), scale: Vec3::from(s) });
+            }
+            None => {
+                held.parts.remove(&e);
+            }
+        }
+        self.dirty = true;
+        true
+    }
+
+    /// Every mesh drawn as its edges over its shading, or as it is. False with no 3D or no wireframe pass.
+    pub fn wire(&mut self, on: bool) -> bool {
+        let Some(w) = self.scene.as_mut().map(|e| e.world_mut()) else { return false };
+        let ok = raea_sys_frame::hold::set_wire(w, on);
+        self.dirty |= ok;
+        ok
     }
 
     /// The scene drawn from an orbit (yaw and pitch in radians, distance in metres, about `target`) until None puts
@@ -130,4 +168,20 @@ impl Live {
             "points": placed.iter().map(|p| p.map(|p| json!([p[0] as f64 * w, p[1] as f64 * h]))).collect::<Vec<_>>(),
         })
     }
+}
+
+/// Where a part stands, for the page: its place in its parent's space and in the world (translation, rotation as a
+/// quaternion [x, y, z, w], scale), and its parent's matrix in the world (16 numbers, column by column; null at the top).
+fn placed_json(p: raea_sys_frame::hold::Placed) -> Value {
+    let trs = |t: Transform| json!({"translation": t.translation.to_array(), "rotation": t.rotation.to_array(), "scale": t.scale.to_array()});
+    json!({
+        "local": trs(p.local),
+        "world": trs(p.world.compute_transform()),
+        "parent": p.parent.map(|g| Mat4::from(g.affine()).to_cols_array().to_vec()),
+    })
+}
+
+/// Scenes opened from here on can be drawn as wireframe (`Live::wire`): the app's stage asks once, before any opens.
+pub fn want_wire() {
+    raea_sys_frame::hold::want_wire();
 }

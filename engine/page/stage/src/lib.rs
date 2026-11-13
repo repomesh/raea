@@ -24,6 +24,13 @@
 //!                              note's pin follow what they are on)
 //!   stage.props {props}        the composition's props set over its defaults as it plays (PV4b): the frame it is on is
 //!                              drawn again with them; nothing is reopened or written
+//!   stage.part {key}           the part that key names as it stands now ({entity_key, placed}), or null
+//!                              (docs/scene-feed.feature SF4c); a pick's part carries the same `placed`: {local,
+//!                              world: {translation, rotation [x, y, z, w], scale}, parent: 16 numbers | null}
+//!   stage.hold {key, translation, rotation, scale} | {key, release: true}
+//!                              that part drawn at a place in its parent's space until it is let go of: a drag
+//!                              as it looks while it is dragged; nothing is written
+//!   stage.wire {on}            every mesh drawn as its edges over its shading (SF3e); answers whether it can
 //!   stage.inspect {id}         that element as it is now (its owner, kind, box, props, text), or null once it's gone
 //!   stage.tweak {changes}      [{owner, kind, prop, value}]: the props written into the composition as its next
 //!                              version (raea-sys-tweak), which the stage then shows at the same frame, its input replayed
@@ -69,6 +76,12 @@ enum Cmd {
     Locate(Vec<String>, Vec<[f32; 3]>, Answer),
     /// props over the composition's defaults, from now
     Props(Value, Answer),
+    /// a part by its key, as it stands now
+    Part(String, Answer),
+    /// a part held at a place in its parent's space (None: let go of)
+    Hold(String, Option<([f32; 3], [f32; 4], [f32; 3])>, Answer),
+    /// the scene as wireframe, or as it is
+    Wire(bool, Answer),
     /// an element as it is now, by id
     Inspect(u64, Answer),
     /// props written into the next version, which then plays from the same frame
@@ -144,6 +157,8 @@ impl Plugin for StagePlugin {
             // SAFETY: the app is being built on its main thread; the stage's thread starts at the first show
             unsafe { std::env::set_var("RAEA_SOURCE_STAMPS", "1") };
         }
+        // the stage's scenes can be drawn as wireframe (docs/scene-feed.feature SF3e): asked for before any opens
+        raea_runtime_live::want_wire();
         app.insert_resource(stage)
             .init_resource::<HostCalls>()
             .add_plugins(ExtractResourcePlugin::<Stage>::default())
@@ -214,6 +229,8 @@ fn run(rx: Receiver<Cmd>, status: Arc<Mutex<Status>>, slot: Arc<Mutex<Painted>>)
     };
     // paused: the frames asked for and not yet stepped (at most 4 a turn, as playing)
     let mut steps = 0i64;
+    // the scene shown as wireframe (stage.wire), and a file just opened that hasn't taken it yet
+    let (mut wire, mut rewire) = (false, false);
     // RAEA_STAGE_TRACE=1: each frame stepped and its keys, on stderr
     let trace = std::env::var("RAEA_STAGE_TRACE").as_deref() == Ok("1");
     // the stage's size, which the page's points are in
@@ -256,6 +273,7 @@ fn run(rx: Receiver<Cmd>, status: Arc<Mutex<Status>>, slot: Arc<Mutex<Painted>>)
                         Ok(l) => {
                             status.lock().unwrap().fps = l.fps;
                             live = Some(l);
+                            rewire = wire;
                         }
                         Err(e) => set_error(e),
                     }
@@ -328,6 +346,18 @@ fn run(rx: Receiver<Cmd>, status: Arc<Mutex<Status>>, slot: Arc<Mutex<Painted>>)
                 }
                 None => answer.ok(Value::Null),
             },
+            Some(Cmd::Part(key, answer)) => answer.ok(live.as_mut().and_then(|l| l.part(&key)).unwrap_or(Value::Null)),
+            Some(Cmd::Hold(key, to, answer)) => {
+                let held = live.as_mut().is_some_and(|l| l.hold(&key, to));
+                repaint |= held;
+                answer.ok(json!(held));
+            }
+            Some(Cmd::Wire(on, answer)) => {
+                wire = on;
+                let can = live.as_mut().is_some_and(|l| l.wire(on));
+                repaint |= can;
+                answer.ok(json!(can));
+            }
             Some(Cmd::Inspect(id, answer)) => match live.as_mut() {
                 Some(l) => answer.ok(l.element(id).map(|e| on_stage(e, l, stage)).unwrap_or(Value::Null)),
                 None => answer.ok(Value::Null),
@@ -352,6 +382,12 @@ fn run(rx: Receiver<Cmd>, status: Arc<Mutex<Status>>, slot: Arc<Mutex<Painted>>)
             None => {}
         }
         let Some(l) = live.as_mut() else { continue };
+        // a file opened again while the scene was shown as wireframe: its 3D is made on a thread, so it is asked each
+        // turn until it is there to take it
+        if rewire && l.wire(true) {
+            rewire = false;
+            repaint = true;
+        }
         let due = if playing { base + (since.elapsed().as_secs_f64() * l.fps) as i64 } else { frame + steps };
         let mut stepped = 0;
         while frame < due && stepped < 4 {

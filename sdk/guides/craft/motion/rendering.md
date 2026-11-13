@@ -49,6 +49,14 @@ quality instead, each frame getting the bits it needs: `master` keeps thin type 
 material as PNG frames (`RAEA_READBACK=rgba raea render piece.tsx -o frames/`) and encode them with more bits for the
 darks.
 
+Which to ask for. A version made for notes (a cut to review, a shot that will be joined, a preview) takes no
+`--quality` flag: the default is already close to the picture `master` gives, in a fraction of the file. Measured on
+1080p24 film footage: the default 16 Mbit/s, `high` 30, `master` 87; against the `master` encode the default scores
+VMAF 99.5 (its worst frame 95.8) and `high` 99.7. So `master` on every review version is five times the disk for
+nothing a person sees, and a film reviewed ten times is ten gigabytes. Keep `master` for the one file that is
+delivered when it is motion graphics or type (thin edges at 4K are where it shows); deliver a film at `high`. When a
+version is replaced, delete the one before the last, and delete a shot's file once the joined film has it.
+
 ## A person's hand edits
 
 A person's hand edit in the raea app comes back as props, so keep them when you revise: `<Composition ... edit={{

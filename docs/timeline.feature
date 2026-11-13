@@ -1,0 +1,377 @@
+@spec
+Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the feed, open to extension
+  Shane, 2026-11-13 (goal, launching alongside the character SDK): "the goal with the timeline sdk is to provide
+  agents pushing feed items or controllers / things we might want to be able to edit directly with timeline based
+  adjustment which includes full on video editing in the feed watch/scene items if any components or compositions are
+  in the sequence, text, effects, transitions etc. the goal should be to actually open and explore every inch and
+  aspect of how capcut timeline works and basically do the exact same thing. we want full editing ability and to
+  remove the timeline 'comments' as we can just do that in the viewer at whatever timecode im at ... the switcher on
+  the left for video/audio and we should basically allow those to expand; we also can add some way of allowing for
+  keyframes, changing the way you make bezier curves and things. the idea is that we provide the framework and parity
+  functionality and feel to capcut while allowing it to be extended. This also means live editing buffering and
+  playback of whole sequences, 3d scenes, etc need to be done to include buffering, caching, smart cache clearing,
+  etc. these changes in the timeline are not suggestions they are actual edits sent to the agent. these should be
+  deeply connected to the watch, listen, and scene feed experiences."
+
+  What there is to build on (read 11-13):
+    - docs/editing.feature E1 to E5: the composition's file is the document, a change is a change to its code made at
+      once, the working version (NAME-vN.tsx), a <Sequence>'s span edited on a strip (host/sequences.ts), the engine's
+      stage playing the working file live (E4a), an agent editing through the same operations (editor_edit, E5a).
+    - raea-feed src/detail: the viewer's strip (blocks/Filmstrip.tsx: two tracks, a kind picker in each track's
+      gutter, plugins' lanes, the comments' pins and a comment card on the strip), the hand editor (timeline/Editor.tsx,
+      Strip.tsx: cuts over the render, parts retimed, undo and redo), the composition editor (src/compositions).
+    - raea-feed PR #18 (11-13): a scrubber that only seeks, the strip collapsed to it, a resize handle on its top edge.
+    - The proxy store (host/preview/proxies.ts: light copies, thumbnails, peaks, a size limit and a sweep), the export
+      and bundle caches (runtime/bundle cache.rs), rr3's shot segments (docs/rerender.feature, behind RAEA_SEGMENTS=1).
+
+  CapCut's desktop timeline, as its own help pages and guides describe it (read 11-13; no CapCut code is read or
+  copied, and no other editor's under a licence that forbids it: docs/editing.feature's note on react-video-editor-pro):
+    - Above the timeline, left: the pointer's mode (Select A, Split B, select everything left [ or right ]), undo and
+      redo, Split (Cmd+B; Cmd+Shift+B every track), Delete left Q and Delete right W (of the playhead, on the picked
+      clip, the gap closed), a marker M, Delete, and for a picked clip Freeze, Reverse, Mirror, Rotate, Crop.
+      Right: record a voice, the main track magnet P, auto snapping N, linkage ~, the preview axis S (the frame under
+      the pointer), fit Shift+Z, and zoom (Cmd +/-, Cmd+scroll; Option+scroll scrolls sideways).
+    - Tracks: one main track that never holds a gap while its magnet is on (a clip dropped between two moves the rest;
+      off, a clip dragged over others becomes an overlay on a track above); overlay picture tracks above it; text,
+      sticker, effect, filter and adjustment tracks above those; sound tracks below. Each track's head locks it, hides
+      it (eye) or mutes it (speaker).
+    - A clip: picked by a click, several by Cmd+click or a box; moved by a drag, trimmed by its edges (back out again
+      to the source's end), split, deleted, duplicated, copied and pasted, its attributes pasted onto another
+      (Cmd+Shift+C/V), disabled (V), grouped (Cmd+G), made a compound clip (Option+G), its sound extracted
+      (Cmd+Shift+S). I and O mark a range.
+    - Moving in time: Space, Left/Right a frame, Shift+Left/Right several, Up/Down the cut before or after, Home/End.
+    - Keyframes: a diamond beside each property in the inspector stores its value at the playhead; a second, later
+      one with another value animates between them; the diamonds show on the clip; a graph shapes the change (linear,
+      ease in, out, both, or a curve dragged by hand). Position, scale, rotation, opacity, colour, volume.
+    - Speed: constant, or a curve of points from 0.1x to 10x with presets (Montage, Hero, Bullet, Jump cut, Flash in,
+      Flash out) and a custom one; the clip's length follows.
+    - A transition sits on the cut between two clips that touch; its length is dragged. Effects, filters and
+      adjustments are clips on their own tracks, over the span they cover.
+    - Sound: the waveform on the clip, a volume line, fade in and fade out as lengths at the clip's ends, beat markers
+      on the waveform that edges snap to.
+    - Playing while editing: lighter copies of heavy media (Proxy, 540 or 720 lines), a lower preview quality, parts
+      that were worked out kept (the cache: its size shown, cleared by hand or on a schedule), all remade when needed;
+      an export always reads the originals.
+
+  The model this file sets:
+    1. One timeline model, in an SDK (sdk/timeline, TypeScript, no React, no DOM): tracks, clips, keys, markers, and
+       the operations on them, each a pure function from a timeline to the next. The app's strip draws it and the
+       host writes it; an agent reads and writes the same model. It replaces the strip's own cut and parts.
+    2. The composition's file is still the document (docs/editing.feature): a timeline is read from a composition's
+       tree, and each operation is also a code edit to the working version. What the code can't express as written
+       (a span set by an expression) is shown locked, with why.
+    3. An operation made by the person is an edit, applied at once, and sent to the item's agent as the edit that
+       was made, never as a note asking for it.
+    4. Parity first, in function and feel: CapCut's tools, keys, magnet, snapping and gestures, at 60 frames a second
+       under the pointer. Then the points where it is extended: a kind of track, a kind of clip, a property and its
+       editor, an easing, a transition, an effect, a lane, a tool, each a plugin's contribution.
+    5. Comments are the viewer's. The timeline takes no comment and opens no comment card; a comment made on the
+       picture at a moment shows as a marker on the timeline, which opens it.
+    6. The picture under an edit is the engine playing the working file (E4a) where there is a stage, with what was
+       drawn kept: a range's frames are kept by what draws them, an edit drops only the ranges it changed, and the
+       store keeps itself under a size the person sets.
+
+  Background:
+    Given the SDK is sdk/timeline in raea, the app's side is raea-feed src/detail (timeline, strip, blocks), the
+      host's is raea-feed host (sequences.ts, edit.ts, preview/proxies.ts) and the engine's stage is engine/page/stage
+    And every scenario below is a task (docs/agents.md "Tasks: rask"); a status line under a rule says what is built
+
+  Rule: TL0. One model: tracks, clips, keys, markers
+    # Plan (crate or package | file | lines | job)
+    #   sdk/timeline | src/model.ts   | 150 | Timeline, Track, Clip, Key, Marker, Ease; ids; frames as integers
+    #   sdk/timeline | src/ops.ts     | 300 | every operation as (timeline, op) -> timeline; inverse for undo
+    #   sdk/timeline | src/snap.ts    | 120 | what an edge snaps to, and the magnet's closing of gaps
+    #   sdk/timeline | src/keys.ts    | 160 | a property's value at a frame; cubic bezier easing; presets
+    #   sdk/timeline | src/speed.ts   | 120 | a speed curve's source time at an output time, and its length
+    #   sdk/timeline | src/read.ts    | 200 | a timeline from a composition's read tree (host/sequences.ts' rows)
+    #   sdk/timeline | src/edits.ts   | 200 | an operation as code edits to the working version
+
+    Scenario: TL0a. Time is whole frames
+      Given a timeline at 30 frames a second
+      Then every clip's start, length and trim, every key and every marker is a whole number of frames
+      And a timecode is drawn from frames (mm:ss:ff), never the other way
+
+    Scenario: TL0b. An operation is a pure function with an inverse
+      Given any timeline and any operation that applies to it
+      Then applying the operation and then its inverse gives the timeline back, to the frame
+      And an operation that can't apply (a locked track, a clip trimmed past its source) is refused with its reason
+
+    Scenario: TL0c. A timeline is read from a composition
+      Given a composition with sequences, a <Video>, an <Audio>, a component and a <Series>
+      Then each is a clip with its span, on a track by its kind and its depth in the tree, and names its element
+        (file:line:col, docs/editing.feature E2)
+      And a span written as an expression is a clip marked locked, with "set in code"
+
+    Scenario: TL0d. A feed item or a controller declares a timeline
+      Given an agent posts a feed item, or a controller has a field, that carries a timeline (tracks of clips over
+        anything with a time: a film, a song, a scene's animation, a schedule)
+      Then the app draws it with the same strip and tools, and its operations go back to the agent as TL9 says
+
+  Rule: TL1. Tracks: a main track, overlays above, sound below, each with a head
+    Scenario: TL1a. Tracks by kind, in CapCut's order
+      Then from the top: effect and adjustment tracks, text tracks, overlay picture tracks, the main track, sound tracks
+      And a new clip of a kind with no free track makes one in its place in that order
+
+    Scenario: TL1b. A track's head
+      Then each track's head has its kind's icon and name, a lock, an eye (picture) or a speaker (sound)
+      And a locked track's clips can't be picked or changed, a hidden one isn't drawn in the picture, a muted one isn't heard
+      And these are edits like any other (TL9): the composition is drawn that way until they are turned back
+
+    Scenario: TL1c. Tracks expand
+      Given the switcher on the left of a track (what it shows: frames, waveform, spectrogram, words, a plugin's lane)
+      When I drag a track's lower edge, or double-click its head
+      Then that track alone grows or shrinks, from a line to tall, and what it shows gains detail with its height
+      And the whole timeline still resizes from its top edge and collapses to its scrubber (raea-feed PR #18)
+
+    Scenario: TL1d. The main track's cover and the first frame
+      Then the main track's head shows the film's poster, and picking it sets the frame used as the item's poster
+
+  Rule: TL2. Moving through time
+    Scenario: TL2a. The ruler and the playhead
+      Then a ruler over the tracks marks time at the zoom's scale (frames, seconds, tens of seconds)
+      And a press or a drag on the ruler or the scrubber moves the playhead and nothing else
+
+    Scenario: TL2b. Keys, as CapCut's
+      Then Space plays and pauses; Left and Right step a frame; Shift+Left and Shift+Right step ten
+      And Up and Down go to the cut before and after; Home and End to the first and last frame
+      And every key is listed in one place (the app's shortcuts), can be changed there, and shows in its button's tooltip
+
+    Scenario: TL2c. Zoom and scroll
+      Then Cmd+= and Cmd+- zoom about the playhead, Cmd+scroll about the pointer, Shift+Z fits the whole timeline
+      And scroll moves through the tracks, Option+scroll (and a sideways scroll) through time
+      And the zoom goes from the whole film in the strip's width to one frame at 12 px or more
+
+    Scenario: TL2d. The preview axis
+      Given the preview axis is on (S)
+      When the pointer moves over the tracks
+      Then the picture shows the frame under the pointer without moving the playhead, and goes back when it leaves
+
+    Scenario: TL2e. Markers
+      When I press M
+      Then a marker is at the playhead (on the picked clip if one is picked, else on the timeline), which I can name,
+        colour, drag and delete, and which edges snap to
+
+  Rule: TL3. Clips: pick, move, trim, split, delete
+    Scenario: TL3a. Picking
+      Then a click picks a clip, Cmd+click adds or removes one, a box dragged from empty track picks what it touches
+      And [ and ] pick every clip left or right of the playhead; Cmd+A all; Escape none
+      And what is picked is what the viewer's inspector shows and what editor_selection tells the agent
+
+    Scenario: TL3b. Moving
+      When I drag a clip (or the picked clips together)
+      Then it moves in time on its track, or to another track that takes its kind, snapping as TL4 says
+      And Option held while dragging leaves a copy behind
+
+    Scenario: TL3c. Trimming
+      When I drag a clip's edge
+      Then its start or end moves and, for media, its place in the source with it, never past the source's own ends
+      And a trimmed edge can be dragged back out to what was there
+
+    Scenario: TL3d. Splitting
+      Then Cmd+B splits the picked clips at the playhead (every clip under it when none is picked)
+      And Cmd+Shift+B splits every track; B makes each click a split until A; a split clip's keys stay at their frames
+
+    Scenario: TL3e. Delete, delete left, delete right
+      Then Delete removes the picked clips; on the main track with the magnet on, the gap closes
+      And Q removes what is left of the playhead on the picked clip, W what is right of it, the gap closed
+      And Shift+Delete closes the gap on any track
+
+    Scenario: TL3f. Copy, paste, duplicate, attributes
+      Then Cmd+C, Cmd+X and Cmd+V copy, cut and paste clips at the playhead on their tracks; Cmd+D duplicates after
+      And Cmd+Shift+C and Cmd+Shift+V copy a clip's properties, keys and effects onto the picked ones
+
+    Scenario: TL3g. Disable, group, compound
+      Then V turns the picked clips off and on (drawn dimmed, left out of the picture and the sound)
+      And Cmd+G groups clips so they pick and move as one; Cmd+Shift+G lets them go
+      And Option+G makes the picked clips one compound clip (in code, one component holding them), opened by a
+        double-click to edit inside; Option+Shift+G puts them back
+
+    Scenario: TL3h. Freeze, reverse, mirror, rotate, crop
+      Then with a picture clip picked the bar offers Freeze (a still of the playhead's frame, 3 s, inserted there),
+        Reverse, Mirror, Rotate (90 degrees) and Crop, each an edit to that clip's element
+
+    Scenario: TL3i. Undo and redo
+      Then Cmd+Z and Cmd+Shift+Z step through every operation, the person's and the agent's (E5a), one history
+      And a drag is one step however many frames it crossed
+
+  Rule: TL4. The magnet, snapping and linkage
+    Scenario: TL4a. The main track's magnet (P)
+      Given the magnet is on
+      Then the main track has no gap: a clip removed closes it, a clip dropped between two moves the later ones on
+      And a clip dragged past its neighbour's middle swaps places with it
+      Given it is off
+      Then clips stay where they are, a gap is allowed, and a clip dropped over another goes to a track above
+
+    Scenario: TL4b. Snapping (N)
+      Then a dragged clip's edges, a trimmed edge and the playhead snap within 8 px to clip edges on every track,
+        the playhead, markers, beats and the film's ends, with a line drawn where it snapped
+      And Cmd held while dragging turns snapping off for that drag
+
+    Scenario: TL4c. Linkage (~)
+      Given linkage is on
+      Then what sits over a main-track clip (text, effects, overlays that start inside its span) moves, is split's
+        left or right part, and is deleted with it
+      And a video clip's own sound moves with it until Cmd+Shift+S extracts it to a sound track
+
+  Rule: TL5. Keyframes and curves
+    Scenario: TL5a. A key is a property's value at a frame
+      Given a clip is picked and the playhead is inside it
+      When I press the diamond beside a property (position, scale, rotation, opacity, volume, any prop its element
+        declares as a number, a colour or a point)
+      Then that property has a key there; changing the value at another frame adds a key there
+      And between two keys the value follows the first key's ease; before the first and after the last it holds
+
+    Scenario: TL5b. Keys on the clip
+      Then a clip with keys shows them as diamonds along it (Option+K shows or hides a row a property)
+      And a diamond is dragged in time, copied, deleted; a click on one moves the playhead to it
+      And the diamond beside the property steps to the key before and after
+
+    Scenario: TL5c. Easing is a cubic bezier, edited by hand
+      When I open a span between two keys
+      Then a graph shows its curve with two handles; dragging them changes it; the picture plays it as I drag
+      And presets fill it (linear, ease in, ease out, ease in-out, hold, and those a plugin adds), and a curve I made
+        can be saved by name for the workspace
+      And in code a key's ease is its four numbers ([x1, y1, x2, y2]), "linear" or "hold"
+
+    Scenario: TL5d. Keys in code
+      Then a property with keys is written on its element as one readable prop (keys={{ scale: [[0, 1], [45, 1.15,
+        [0.2, 0, 0, 1]]] }} through one wrapper, as <Nudge> is for a still value), re-written in place on each change
+      And a property animated by the composition's own code (interpolate, spring) is shown as a curve that can be
+        read but not dragged, with "set in code"
+
+  Rule: TL6. Speed
+    Scenario: TL6a. A constant speed
+      When I set a picked clip's speed (Cmd+R) from 0.1x to 100x, or drag its edge with Option held
+      Then its length follows, its sound keeps its pitch unless I say otherwise, and the magnet closes or opens the gap
+
+    Scenario: TL6b. A speed curve
+      When I choose Curve (Shift+B)
+      Then the clip has points from 0.1x to 10x over its source, with the presets Montage, Hero, Bullet, Jump cut,
+        Flash in and Flash out, and a custom one whose points I drag, add and remove
+      And the clip's length is the curve's, and a line over the clip shows where it is fast and slow
+
+  Rule: TL7. Transitions, effects, text
+    Scenario: TL7a. A transition sits on a cut
+      Given two clips that touch on one track
+      When I drop a transition on their cut (or pick one from the cut's own button)
+      Then it is drawn across the cut, its length dragged from either end, within what both clips have beyond the cut
+      And it is a component both clips' elements are wrapped by in code, one a plugin can add
+
+    Scenario: TL7b. Effects, filters and adjustments are clips
+      Then each is a clip on a track above the picture, covering the span it applies to, trimmed and keyed like any other
+      And with linkage on it follows the main-track clip under its start
+
+    Scenario: TL7c. Text and captions
+      Then a text is a clip on a text track; double-click edits its words in the picture; Enter splits a caption in two
+      And captions made from the words (the transcript) are clips on a caption track, each moved, trimmed and edited
+
+  Rule: TL8. Sound
+    Scenario: TL8a. The waveform, the volume line and fades
+      Then a sound clip draws its waveform; a line across it is its volume, dragged up and down (Cmd+. and Cmd+,
+        0.1 dB); a handle at each top corner drags a fade in and a fade out, drawn as the waveform's slope
+      And volume takes keys as TL5 says
+
+    Scenario: TL8b. Beats
+      When I ask for a sound clip's beats
+      Then they are marked along it (the bed's beat map where raea made the music, else found from the sound), each
+        can be turned off, and edges snap to them (TL4b)
+
+    Scenario: TL8c. A voice recorded onto the timeline
+      When I press record and speak
+      Then the take is a sound clip from the playhead on a sound track, and a file in the project
+
+  Rule: TL9. An edit is an edit, and the agent gets it as one
+    Scenario: TL9a. Applied at once, to the working version
+      When I make any operation above
+      Then the working version's code is changed by it (docs/editing.feature E1a) and the picture shows it (TL10)
+      And nothing asks me to confirm, and nothing is held as a suggestion
+
+    Scenario: TL9b. Sent to the agent as what was done
+      Given the item's agent has a session (or is started for it, as a note's send does)
+      When my sitting's edits are sent (when I leave the editor, press Send, or pause a while)
+      Then the agent receives them as edits already made: the operations in order, each with the clip's element, the
+        frames before and after, and the file and lines changed, with the version they made
+      And its prompt says they are done and not to be redone or undone, and what is its to do next (render, check,
+        carry the change to what depends on it)
+
+    Scenario: TL9c. The agent's edits are operations too
+      When an agent changes the timeline (editor_edit, or the SDK's operations from its own code)
+      Then they land in the open sitting's history as mine do, and I see each one happen
+
+    Scenario: TL9d. A timeline with no composition behind it
+      Given a feed item or a controller whose timeline is its own data (TL0d)
+      Then an operation changes that data where it is kept and is sent to its agent the same way
+
+  Rule: TL10. Playing while editing: buffer, cache, and clearing it
+    Scenario: TL10a. The engine plays the working file
+      Given a stage (the raea app)
+      Then the picture is the engine drawing the working version at the playhead, for 2D, 3D and ray-traced scenes
+      And a change shows on the next frame; no render stands between an edit and the picture (E4a)
+
+    Scenario: TL10b. Frames drawn are kept, by what draws them
+      Then a range of frames the stage has drawn is kept (in memory near the playhead, on disk beyond it) under a key
+        of everything that draws it: the clips over it, their props and keys, the media's own fingerprints
+      And playing a kept range shows its frames without drawing them again, at the film's own rate
+      And a bar over the ruler shows which ranges are kept and which are being drawn
+
+    Scenario: TL10c. An edit drops only what it changed
+      When I move a clip from 2:00-2:05 to 2:10-2:15
+      Then the kept frames of 2:00-2:05 and 2:10-2:15 are dropped and every other range plays from the store
+
+    Scenario: TL10d. Buffering ahead
+      Given a part of the film that can't be drawn at its rate (a ray-traced scene, a 4K clip)
+      Then while paused, and while playing ahead of the playhead, the stage draws and keeps what comes next
+      And heavy media plays from its light copy while editing (the proxy store), and an export reads the originals
+      And when playing reaches a frame that isn't ready, the picture holds and says "Buffering" until 1 s is ready
+
+    Scenario: TL10e. The store keeps itself small
+      Then the kept frames live in the proxy store, under its one size limit, shown in Settings with what holds it
+      And the least recently played ranges go first; a version that was closed or discarded goes at once; nothing a
+        person made by hand is ever in it
+      And clearing it by hand costs only time: everything in it is made again when needed
+
+    Scenario: TL10f. Whole sequences and scenes
+      Then a Scene item's animation and a film's 3D shots play, scrub and cache the same way
+      And a sequence of several compositions plays through its cuts without a gap or a reload
+
+  Rule: TL11. The framework: every part can be added to
+    Scenario: TL11a. Contribution points
+      Then a plugin (plugins/manifest.ts) can add: a kind of track, a kind of clip and how it draws on the strip, a
+        property and its editor in the inspector, an easing preset, a speed preset, a transition, an effect, a lane,
+        a tool in the bar with its key, and a snapping target
+      And raea's own tracks, clips, easings and transitions are registered through the same points
+
+    Scenario: TL11b. The SDK alone
+      Then sdk/timeline has no React and no DOM: an agent's script, the host and a test use it as the app does
+      And its reference page lists every type and operation with an example, in the skills reference
+
+  Rule: TL12. Comments leave the timeline
+    Scenario: TL12a. No comment is made on the timeline
+      Then a press on the tracks never opens a comment card, with any tool on, and the strip's menu has no Comment item
+      And Comment in the viewer pins a comment on the picture at the playhead's time, as it does now
+
+    Scenario: TL12b. A comment shows as a marker
+      Then each comment with a time shows as a marker on the ruler in its author's hue; a click opens it in the viewer
+
+  Rule: TL13. Feel
+    Scenario: TL13a. Under the pointer
+      Then a drag, a trim and a scrub draw at the window's rate with 400 clips on 12 tracks, the dragged clip never
+        more than a frame behind the pointer
+      And a pick shows within 50 ms, a split within 100 ms, and the picture follows an edit within 100 ms where the
+        stage plays it
+
+    Scenario: TL13b. Measured, as 0.1.4's were
+      Then each number above has a harness and a before and after in this file, in a headless window
+
+  Rule: TL14. Watch, Listen and Scene are one timeline
+    Scenario: TL14a. Watch
+      Then a film in the feed opens with the timeline under it: the render's own reference (frames, waveform,
+        words) when it has no composition, the composition's tracks when it has, edited in place (no separate editor)
+
+    Scenario: TL14b. Listen
+      Then a sound in the feed has the same timeline: its stems as sound tracks, notes and parts as clips where
+        raea made the music, with TL8's tools
+
+    Scenario: TL14c. Scene
+      Then a 3D scene in the feed has the same timeline: its animation clips, cameras' cuts and keyed props as
+        tracks, the stage as its picture, with TL5's keys on any animatable prop

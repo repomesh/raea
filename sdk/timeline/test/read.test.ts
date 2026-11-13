@@ -36,7 +36,16 @@ describe("TL0c: a timeline is read from a composition", () => {
     // every clip under the playhead that can be changed, the later one first
     expect(seqEdits(t, { op: "split", at: 45 })).toEqual([{ op: "split", i: 1, at: 45 }, { op: "split", i: 0, at: 45 }])
     expect(seqEdits(t, { op: "remove", ids: ["seq-0", "seq-3"] })).toEqual([{ op: "delete", i: 3 }, { op: "delete", i: 0 }])
-    expect(seqEdits(t, { op: "key", id: "seq-0", prop: "scale", at: 0, value: 1 })).toEqual({ why: 'the composition\'s sequences don\'t take "key" yet' })
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { speed: 2 } })).toEqual({ why: 'the composition\'s sequences don\'t take "set" yet' })
+  })
+
+  test("a key on a sequence is its <Nudge>'s keys, written whole; what the wrapper can't key is refused", () => {
+    const keyed = fromSequences([{ ...rows[0], keys: { scale: [[0, 1], [45, 1.2, [0.2, 0, 0, 1]]] } }, rows[1]], 30)
+    expect(keyed.tracks[0].clips[0].keys).toEqual({ scale: [{ at: 0, value: 1 }, { at: 45, value: 1.2, ease: [0.2, 0, 0, 1] }] })
+    expect(seqEdits(keyed, { op: "key", id: "seq-0", prop: "opacity", at: 10, value: 0.5 })).toEqual([{ op: "keys", i: 0, keys: { scale: [[0, 1], [45, 1.2, [0.2, 0, 0, 1]]], opacity: [[10, 0.5]] } }])
+    expect(seqEdits(keyed, { op: "ease", id: "seq-0", prop: "scale", at: 0, ease: "hold" })).toEqual([{ op: "keys", i: 0, keys: { scale: [[0, 1, "hold"], [45, 1.2, [0.2, 0, 0, 1]]] } }])
+    expect(seqEdits(keyed, { op: "unkey", id: "seq-0", prop: "scale", at: 45 })).toEqual([{ op: "keys", i: 0, keys: { scale: [[0, 1]] } }])
+    expect(seqEdits(keyed, { op: "key", id: "seq-0", prop: "blur", at: 0, value: 1 })).toEqual({ why: "a sequence keys its x, y, scale, rotate, opacity: blur is its own code's" })
   })
 })
 

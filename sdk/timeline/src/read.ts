@@ -2,8 +2,8 @@
 // lists them (raea-feed host/sequences.ts), or a film with no composition as its scenes and its sound. And an
 // operation on a sequences' timeline as the host's own edits to those elements (docs/editing.feature E3b), until
 // every operation is a code edit of its own (edits.ts).
-import { type Clip, empty, end, find, type Frames, type Timeline, type Track } from "./model"
-import type { Op } from "./ops"
+import { type Clip, type Ease, empty, end, find, type Frames, type Key, type Timeline, type Track } from "./model"
+import { apply, type Op } from "./ops"
 
 /** A <Sequence> as the host lists it: its place among the file's elements, its span in the composition's frames,
  *  the lane it sits on (nested ones below their parent, overlapping ones apart), and why it can't be rewritten. */
@@ -15,9 +15,19 @@ export interface SeqRow {
   to: number
   lane: number
   locked?: string
+  /** the keys its <Nudge> holds, each [frame of the sequence, value, ease?] (TL5d) */
+  keys?: Record<string, [number, number, Ease?][]>
 }
 /** The host's edit to a sequence: its new span, a split, a delete. */
-export type SeqEdit = { op: "move"; i: number; from: number; to: number } | { op: "split"; i: number; at: number } | { op: "delete"; i: number }
+export type SeqEdit =
+  | { op: "move"; i: number; from: number; to: number }
+  | { op: "split"; i: number; at: number }
+  | { op: "delete"; i: number }
+  /** the sequence's keyed properties as they now stand: written as its <Nudge keys>, one a property (TL5d) */
+  | { op: "keys"; i: number; keys: Record<string, [number, number, Ease?][]> }
+
+/** The properties a sequence's <Nudge> can key (sdk/video nudge.tsx). */
+export const KEYED = ["x", "y", "scale", "rotate", "opacity"]
 
 const seqId = (i: number) => `seq-${i}`
 const seqOf = (id: string): number | undefined => (/^seq-\d+$/.test(id) ? Number(id.slice(4)) : undefined)
@@ -27,7 +37,7 @@ const seqOf = (id: string): number | undefined => (/^seq-\d+$/.test(id) ? Number
  *  sequences are where its code puts them, and nothing here moves one that wasn't dragged. */
 export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -79,6 +89,20 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
     case "remove": {
       const r = each(op.ids, (x) => ({ op: "delete", i: x.i }))
       return Array.isArray(r) ? r.sort((a, b) => b.i - a.i) : r
+    }
+    case "key":
+    case "unkey":
+    case "moveKey":
+    case "ease": {
+      if (!KEYED.includes(op.prop)) return { why: `a sequence keys its ${KEYED.join(", ")}: ${op.prop} is its own code's` }
+      if (op.op === "key" && typeof op.value !== "number") return { why: `${op.prop} is a number` }
+      const r = row(op.id)
+      if (!r) return { why: "that isn't one of the composition's sequences" }
+      // the keys as the operation leaves them, every property: the wrapper's one prop is written whole
+      const after = apply(t, op)
+      if (!after.ok) return { why: after.why }
+      const keys = find(after.timeline, op.id)?.clip.keys ?? {}
+      return [{ op: "keys", i: r.i, keys: Object.fromEntries(Object.entries(keys).filter(([p]) => KEYED.includes(p)).map(([p, ks]) => [p, ks.map((k): [number, number, Ease?] => (k.ease === undefined || k.ease === "linear" ? [k.at, k.value as number] : [k.at, k.value as number, k.ease]))])) }]
     }
     default:
       return { why: `the composition's sequences don't take "${op.op}" yet` }

@@ -32,6 +32,20 @@ pub fn ensure(spec: &Spec, progress: &mut dyn FnMut(&str, u64)) -> anyhow::Resul
     Ok(dir)
 }
 
+/// One file from a URL of its own (a model with no Hugging Face home, such as YAMNet from the public repo's models-1
+/// release) into `<root>/<name>/<local>`, downloaded once. The caller checks what arrived.
+pub fn ensure_url(name: &str, local: &str, url: &str, progress: &mut dyn FnMut(&str, u64)) -> anyhow::Result<PathBuf> {
+    let dir = root().join(name);
+    let dest = dir.join(local);
+    if dest.exists() {
+        return Ok(dest);
+    }
+    std::fs::create_dir_all(&dir)?;
+    raea_io_home::offline(&format!("the {name} model's {local} from {url}")).map_err(|e| anyhow::anyhow!(e))?;
+    fetch(url, &dest, &mut |n| progress(local, n))?;
+    Ok(dest)
+}
+
 fn fetch(url: &str, dest: &Path, progress: &mut dyn FnMut(u64)) -> anyhow::Result<()> {
     use std::io::{Read, Write};
     let mut req = ureq::get(url);

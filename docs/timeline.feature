@@ -71,6 +71,22 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
        drawn kept: a range's frames are kept by what draws them, an edit drops only the ranges it changed, and the
        store keeps itself under a size the person sets.
 
+  Status, 11-13 (the first day). On raea main: sdk/timeline (model, ops with inverses, keys and bezier easing, speed
+  curves, snapping, the frame store's decisions, live playback's mapping, readers for a composition's sequences, a
+  film's scenes and a sound's tracks, the palette a plugin adds to; 53 tests) and <Nudge keys> in sdk/video. In
+  raea-feed, draft PR #19 (off unless localStorage raea.timeline-sdk is 1; 11 browser tests, seen in a raea window):
+    built      TL0a-c, TL1a-c, TL2a-e (zoom and scroll partly), TL3a-f (copy and paste aside), TL3g's groups, TL3i,
+               TL4a-c (linkage for what sits over a main clip), TL5a-c, TL5d for a sequence's x, y, scale, rotate and
+               opacity, TL6a-b (presets, no custom points), TL7a (kinds and length; not drawn in the picture), TL8a's
+               waveform and level, TL9a-c for a film's cut, a composition's sequences and keys, and a sound's clips,
+               TL10a for a film's own frames (cuts, moves, trims and speeds play at once; the player's buffer on the
+               ruler), TL11a for easings, speed curves and transitions as a plugin's data, TL12a-b, TL14a-b
+    decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first): the stage
+               that draws frames and the store that holds them aren't built
+    not built  TL0d, TL1d, TL3g's compound clips, TL3h, speed and transitions as code edits, components and media as
+               clips of their own, TL7b-c, TL8a's fades and volume line, TL8b-c, TL9d, TL10d-f for compositions and
+               3D, TL11a's track and clip kinds, tools and snapping targets, TL13, TL14c beyond one clip
+
   Background:
     Given the SDK is sdk/timeline in raea, the app's side is raea-feed src/detail (timeline, strip, blocks), the
       host's is raea-feed host (sequences.ts, edit.ts, preview/proxies.ts) and the engine's stage is engine/page/stage

@@ -31,6 +31,66 @@ Feature: Lightspeed: raea as fast as anything could be, with the best quality, m
       And it updates the row here (value, date, commit) and appends a line to the log at the bottom
       And when an experiment doesn't pay, it records the numbers and reverts the change. A measured no is a result
 
+  Rule: 0.1.4, the performance release (set 2026-11-13: "the v0.1.4 update will be completely performance based")
+    # Seven areas, each with a measured baseline before anything changes. Measured on a clone of a real workspace (9
+    # projects, 21,713 files, a 19 GB media library), the built app headless, a Mac with 64 GB.
+    Scenario: PF1. App start and data loading: seconds if not milliseconds
+      Then the baseline, warm, headless: projects listed 0.61 to 0.67 s after the app is spawned (its host up at
+        0.45 to 0.5 s); a project's feed shown 136 ms after the click with 6 cards, 260 to 282 ms with 41 (about 6 ms
+        a card)
+      And open: a cold start (the first after a reboot), the window on screen, and a feed of several hundred cards
+
+    Scenario: PF2. Thumbnails: feed items, the library, a project's Source
+      Then a composition's still is `raea play FILE --offscreen --seek N` in a process of its own, two at a time:
+        1.4 s, 1.9 s and 5.0 s for three real compositions (a ray-traced set is the 5 s one)
+      And fixed (raea #141): beside a tsconfig.json, which raea writes into every new project, that play threw before
+        its first frame, so every still there was a failed play and then a render (as slow, and the app's stage and
+        `raea play` did not work at all in such a folder)
+      And open: stills drawn in one long-lived process instead of one each (each pays the engine's start), and the
+        library's tiles on a real library (the test copy has none)
+
+    Scenario: PF3. Video takes the space it needs, no more
+      Then the baseline: 38 GB of video in 1,010 files on this Mac, most at 90 to 100 Mbit/s for 1080p, because every
+        review version and every shot to be joined was rendered at `--quality master`
+      And measured on 1080p24 film footage: default 16 Mbit/s, high 30, master 87; against the master encode the
+        default scores VMAF 99.5 (worst frame 95.8) and high 99.7
+      And fixed in the guides and the skill (raea #143, raea-skills #59): a version made for notes takes no --quality
+        flag, a film delivers at high, master is for delivered motion graphics and type, a replaced version is deleted
+      And open: the app saying what renders take and offering to make old versions smaller; whether the library's
+        copy of a render posted from a project is a clone of it or a second file
+
+    Scenario: PF4. Renders two to three times faster
+      Then the baseline on a real ray-traced film at 1080p: a 61-frame shot is 5.2 to 5.8 s, of which the frames are
+        about 2.2 s (25 to 30 a second: 18 to 20 ms waiting on the GPU and 14 to 22 ms making the frame's rows in
+        JavaScript, one after the other) and the rest is the process starting; the whole 1,666-frame film is 53 s
+      And the two levers that follow from it: a frame's rows made while the GPU draws the one before (they are
+        independent: about 1.5 to 2 times on the frames), and every composition of a file rendered in one process (a
+        film made a shot at a time pays about 3.3 s a shot for nothing: 33 shots, 110 s)
+      And fixed (raea #144): a ray-traced camera's MSAA was turned on again every frame and off again by Bevy with a
+        warning, a line a frame in the render's log
+
+    Scenario: PF5. What agents lose time on
+      Then fixed in the lane check (tools/agents/check, on this Mac): the CLI surface step tests the raea it rebuilds
+        (it tested an older build on PATH, and stayed failing after its own rebuild), and the skills step reads the feed
+        app at raea-feed's main (it read whatever branch the shared checkout had out): a lane's check now passes with
+        no variables set
+      And open, each seen on 2026-11-13: a render with <Audio> that reaches no sound is refused only after every frame
+        is drawn (53 s on a film); `--frames N` is ignored without a word when the file has a <Composition> (the whole
+        film was rendered, and to a folder that was 4.9 GB of stills); `but commit` with a long message commits
+        nothing and says so only in a hint; main can fail its own L1 after a GitHub merge (two stale generated pages
+        blocked every lane for a morning); a release's Mac build is about three hours each time and ran many times
+
+    Scenario: PF6. Video playback and looking around a scene
+      Then video (raea #137): frames decoded a quarter second ahead and shown when due, a faster pixel conversion, a
+        small-drawn video drawn from a halving made off the page's thread: 4K30's worst wait between frames 76 ms to
+        39, 4K60 on a page drawing 120 times a second 0 of 1,214 frames passed over
+      And open: frames still go through the CPU; the app's player re-renders its detail view at each timeupdate; the
+        scene inspector's frame rate while orbiting is not measured
+
+    Scenario: PF8. Pages and assets from this Mac open at once
+      Then covered so far by PF1 (a feed) and PF2 (stills); open: the Source view's lists, an asset's preview, a
+        model's, and the library on a real library
+
   Rule: Lightspeed's goals (set 2026-10-19, after the four multi-day levers; the user: "just focus on lightspeed work")
     Scenario: Who owns what now
       Then lightspeed owns performance and optimization end to end: it builds its levers itself, not only measures them

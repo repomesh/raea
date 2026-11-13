@@ -117,9 +117,19 @@ jobs:
       - name: Compile cache (sccache)
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
         uses: mozilla-actions/sccache-action@v0.0.9
+      # the script from this workflow's own commit: a dispatched run (a dry run that fills the cache) builds an older
+      # tag, whose tree may not have it
+      - name: The compile cache's script
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .workflow
+          sparse-checkout: tools/release/compile-cache.sh
+          sparse-checkout-cone-mode: false
       - name: Use the compile cache
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
-        run: bash tools/release/compile-cache.sh
+        run: bash .workflow/tools/release/compile-cache.sh
       - name: Build
         if: env.RAEA_PROMOTED_FROM == ''
         run: |
@@ -245,9 +255,19 @@ jobs:
       - name: Compile cache (sccache, as build's)
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
         uses: mozilla-actions/sccache-action@v0.0.9
+      # the script from this workflow's own commit: a dispatched run (a dry run that fills the cache) builds an older
+      # tag, whose tree may not have it
+      - name: The compile cache's script
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .workflow
+          sparse-checkout: tools/release/compile-cache.sh
+          sparse-checkout-cone-mode: false
       - name: Use the compile cache
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
-        run: bash tools/release/compile-cache.sh
+        run: bash .workflow/tools/release/compile-cache.sh
       - name: Build
         if: env.RAEA_PROMOTED_FROM == ''
         run: |

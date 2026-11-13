@@ -42,6 +42,11 @@ pub struct Media {
     volume: Option<f64>,
     /// when the last `timeupdate` went
     told: Option<std::time::Instant>,
+    /// RAEA_MEDIA_STATS=1: since when, frames shown, frames a newer one took the place of before the page drew, and
+    /// the time setting the picture took (sum and max, ms)
+    stats: Option<(std::time::Instant, u32, u32, f64, f64)>,
+    /// RAEA_MEDIA_STATS=1: when a frame was last shown, and the longest wait between two this second (ms)
+    shown_gap: (Option<std::time::Instant>, f64),
 }
 
 impl Media {
@@ -71,11 +76,12 @@ pub fn sync(doc: &mut BaseDocument, nodes: &Nodes, medias: &mut Medias, out: &mu
             Some(m) if m.src == src && m.load == load => m,
             _ => {
                 let stream = (!src.is_empty()).then(|| raea_runtime_js::media_html::stream::open(&raea_sys_page::net::page_path(&src), video)).flatten();
-                medias.insert(id, Media { src, load, poster: None, seek: None, stream, video, loaded: false, seeking: None, seeked: false, duration: f64::NAN, frame: None, play: None, playing: false, muted: None, volume: None, told: None });
+                medias.insert(id, Media { src, load, poster: None, seek: None, stream, video, loaded: false, seeking: None, seeked: false, duration: f64::NAN, frame: None, play: None, playing: false, muted: None, volume: None, told: None, shown_gap: (None, 0.0), stats: (std::env::var("RAEA_MEDIA_STATS").as_deref() == Ok("1")).then(|| (std::time::Instant::now(), 0, 0, 0.0, 0.0)) });
                 medias.get_mut(&id).unwrap()
             }
         };
         let mut redraw = false;
+        let mut came = 0u32;
         if m.poster != poster {
             m.poster = poster;
             redraw = true;
@@ -129,6 +135,7 @@ pub fn sync(doc: &mut BaseDocument, nodes: &Nodes, medias: &mut Medias, out: &mu
                     let (w, h) = (f.width, f.height);
                     m.frame = Some((w, h, Arc::new(f.rgba)));
                     redraw = true;
+                    came += 1;
                     if !m.loaded {
                         m.loaded = true;
                         out.push(json!({"id": id, "type": "loadeddata", "w": w, "h": h, "duration": m.duration}));
@@ -167,7 +174,22 @@ pub fn sync(doc: &mut BaseDocument, nodes: &Nodes, medias: &mut Medias, out: &mu
             // the frame's pixels shared, not copied again (a 4K frame is 33 MB)
             .or_else(|| m.frame.as_ref().map(|(w, h, px)| (*w, *h, px.clone())));
             if let (Some((w, h, px)), Some(n)) = (pic, nodes.by_id.get(&id)) {
+                let began = std::time::Instant::now();
                 set_image(doc, *n, w, h, px);
+                if let Some(s) = m.stats.as_mut().filter(|_| came > 0) {
+                    let ms = began.elapsed().as_secs_f64() * 1e3;
+                    (s.1, s.2, s.3, s.4) = (s.1 + 1, s.2 + came - 1, s.3 + ms, s.4.max(ms));
+                    if let Some(l) = m.shown_gap.0 {
+                        m.shown_gap.1 = m.shown_gap.1.max(began.duration_since(l).as_secs_f64() * 1e3);
+                    }
+                    m.shown_gap.0 = Some(began);
+                    let took = s.0.elapsed().as_secs_f64();
+                    if took >= 1.0 {
+                        eprintln!("raea-page: video {took:.2} s: {} frames shown ({w}x{h}), {} passed over before the page drew, picture set avg {:.2} ms max {:.2} ms, longest gap {:.0} ms", s.1, s.2, s.3 / s.1.max(1) as f64, s.4, m.shown_gap.1);
+                        *s = (std::time::Instant::now(), 0, 0, 0.0, 0.0);
+                        m.shown_gap.1 = 0.0;
+                    }
+                }
             }
         }
     }

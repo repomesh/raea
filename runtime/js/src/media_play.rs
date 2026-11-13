@@ -37,6 +37,41 @@ pub struct Player<'a> {
     shown: Option<i64>,
     /// when the last Time news went (an audio source's, which has no frames)
     told: Option<Instant>,
+    /// RAEA_MEDIA_STATS=1: how play is going, said a line a second
+    stats: Option<Stats>,
+}
+
+/// A second of play as the decoder's thread saw it (RAEA_MEDIA_STATS=1): the frames it sent, the frames the clock
+/// passed over (decoding fell behind, or the thread woke late), and how long a frame took to decode.
+struct Stats {
+    since: Instant,
+    frames: u32,
+    skipped: u32,
+    sum: f64,
+    max: f64,
+    /// the longest wait between two frames sent, ms
+    gap: f64,
+    last: Option<Instant>,
+}
+
+impl Stats {
+    fn new() -> Self {
+        Stats { since: Instant::now(), frames: 0, skipped: 0, sum: 0.0, max: 0.0, gap: 0.0, last: None }
+    }
+    fn frame(&mut self, decode: Duration, skipped: i64, fps: f64) {
+        let now = Instant::now();
+        if let Some(l) = self.last {
+            self.gap = self.gap.max((now - l).as_secs_f64() * 1e3);
+        }
+        self.last = Some(now);
+        let ms = decode.as_secs_f64() * 1e3;
+        (self.frames, self.skipped, self.sum, self.max) = (self.frames + 1, self.skipped + skipped.max(0) as u32, self.sum + ms, self.max.max(ms));
+        let took = self.since.elapsed().as_secs_f64();
+        if took >= 1.0 {
+            eprintln!("raea-media: play {took:.2} s: {} frames sent of {:.0} due, {} skipped, decode avg {:.1} ms max {:.1} ms, longest gap {:.0} ms", self.frames, took * fps, self.skipped, self.sum / self.frames.max(1) as f64, self.max, self.gap);
+            *self = Stats { last: self.last, ..Stats::new() };
+        }
+    }
 }
 
 impl<'a> Player<'a> {
@@ -46,7 +81,7 @@ impl<'a> Player<'a> {
             Source::Audio(a) => (a.duration(), 0.0),
         };
         let fps = if fps.is_finite() && fps > 1.0 { fps } else { 30.0 };
-        Player { path, source, duration, fps, sound: None, muted: false, volume: 1.0, clock: None, looping: false, shown: None, told: None }
+        Player { path, source, duration, fps, sound: None, muted: false, volume: 1.0, clock: None, looping: false, shown: None, told: None, stats: (std::env::var("RAEA_MEDIA_STATS").as_deref() == Ok("1")).then(Stats::new) }
     }
 
     /// Answers the element's asks until it's gone (its stream dropped).
@@ -54,7 +89,7 @@ impl<'a> Player<'a> {
         loop {
             // playing: wake for the next frame; paused: wait for an ask
             let first = if self.clock.is_some() {
-                match rx.recv_timeout(Duration::from_secs_f64(0.5 / self.fps)) {
+                match rx.recv_timeout(self.until_next()) {
                     Ok(c) => Some(c),
                     Err(RecvTimeoutError::Timeout) => None,
                     Err(RecvTimeoutError::Disconnected) => return self.stop(),
@@ -115,6 +150,20 @@ impl<'a> Player<'a> {
                 return self.stop();
             }
         }
+    }
+
+    /// How long until the next frame falls due on the clock. Waking every half frame instead (as this did) sent
+    /// frames 17 to 50 ms apart at 30 fps, whichever half the wake fell in: the picture juddered, and two frames
+    /// landing inside one of the page's frames lost the page one of them (RAEA_MEDIA_STATS, 11-13: longest gap 43 ms
+    /// every second, 1 to 3 frames a second passed over). A sound's clock moves in its device's steps, so a wake a
+    /// moment early waits again, briefly.
+    fn until_next(&self) -> Duration {
+        let frame = 1.0 / self.fps;
+        let wait = match (&self.source, self.shown) {
+            (Source::Video(_), Some(i)) => ((i + 1) as f64 * frame - self.now()).clamp(0.0005, frame),
+            _ => 0.5 * frame,
+        };
+        Duration::from_secs_f64(wait)
     }
 
     /// The clock's time now.
@@ -184,8 +233,14 @@ impl<'a> Player<'a> {
                 if self.shown == Some(i) {
                     return true;
                 }
+                let skipped = self.shown.map_or(0, |s| i - s - 1);
                 self.shown = Some(i);
-                self.frame(t, tx)
+                let began = Instant::now();
+                let ok = self.frame(t, tx);
+                if let Some(s) = self.stats.as_mut() {
+                    s.frame(began.elapsed(), skipped, self.fps);
+                }
+                ok
             }
             Source::Audio(_) => {
                 if self.told.is_some_and(|w| w.elapsed() < Duration::from_millis(100)) {

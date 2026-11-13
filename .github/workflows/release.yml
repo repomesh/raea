@@ -60,7 +60,9 @@ jobs:
           - os: ubuntu-24.04
             lib: libraea_bundle.so
             extra: raea-perceive
-    runs-on: ${{ matrix.os }}
+    # a faster runner when the repo names one (a third party's, say): vars RELEASE_MAC_RUNNER, RELEASE_LINUX_RUNNER; else
+    # GitHub's own (a 3-core M1 with 7 GB, where a cold build took 3 hours)
+    runs-on: ${{ (matrix.os == 'macos-15' && vars.RELEASE_MAC_RUNNER) || (matrix.os == 'ubuntu-24.04' && vars.RELEASE_LINUX_RUNNER) || matrix.os }}
     # a cold thin-LTO build of raea-cli with the plugin catalog is the long part; GitHub's own limit is 6 hours
     timeout-minutes: 340
     env:
@@ -205,7 +207,7 @@ jobs:
   # accept no licence and download no Microsoft files). The C runtime is the DLL one (the VC++ redistributable): ort's
   # prebuilt ONNX Runtime is built against it, so crt-static doesn't link (LNK2019 on __imp_ symbols, 10-29).
   windows:
-    runs-on: windows-latest
+    runs-on: ${{ vars.RELEASE_WINDOWS_RUNNER || 'windows-latest' }}
     timeout-minutes: 350
     env:
       # the compile cache, as build's

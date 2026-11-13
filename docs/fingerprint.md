@@ -19,6 +19,12 @@ about a piece, such as a soft picture, dead motion, noise under the voice or a c
 device**. On top of the axes sit the person's **weighting** across them, an optional **profile** (ranges taken from
 work they admire) and the **evidence ledger** that every head was trained from.
 
+The frozen encoders together are the **Edit Embedding Zoo** (Shane, 11-13: the standard name, in the docs, the app
+and anything we publish): SigLIP 2 for pictures, CLAP for how it sounds, YAMNet for sound events and their timing,
+EmbeddingGemma 2 for text and Depth Anything 3 for depth. They are pinned, run on the person's device and are the same
+for every fingerprint. A fingerprint is what a person trains over the zoo: its axes' heads. The zoo itself never
+changes.
+
 On day one, an axis's words already give it a zero-shot score. Each label the person adds retrains its head in
 milliseconds. Whatever can be measured exactly, such as loudness, silence gaps, frozen frames or one thing passing
 through another, is a check rather than a learned head. A team shares evidence, never media, and each machine

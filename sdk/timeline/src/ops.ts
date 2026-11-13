@@ -89,7 +89,7 @@ function fresh(t: Timeline, id: string, taken: Set<string> = new Set()): string 
   return n
 }
 /** How many source frames a clip shows. */
-const shown = (c: Clip): number => (c.curve ? c.length / played(c.curve, 1) : c.length * speedOf(c))
+const shown = (c: Clip): number => (c.curve ? (c.shows ?? c.length / played(c.curve, 1)) : c.length * speedOf(c))
 const isMain = (k: Track) => k.kind === "main"
 
 /** `clip` on the timeline: on `prefer` if it has room there, else the first track of `kind` with room, else a new
@@ -138,12 +138,12 @@ function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
         const start = Math.min(end(clip) - 1, Math.max(to, least, before, 0))
         const d = start - clip.start
         if (!d) return t
-        return change(t, clip.id, (c) => ({ ...c, start, length: c.length - d, ...(c.in !== undefined && { in: Math.max(0, c.in + Math.round(d * speed)) }), ...(c.keys && { keys: shiftKeys(c.keys, d) }), ...(c.markers && { markers: c.markers.map((m) => ({ ...m, at: m.at - d })).filter((m) => m.at >= 0) }) }))
+        return change(t, clip.id, (c) => ({ ...c, start, length: c.length - d, ...(c.shows !== undefined && { shows: (c.shows * (c.length - d)) / c.length }), ...(c.in !== undefined && { in: Math.max(0, c.in + Math.round(d * speed)) }), ...(c.keys && { keys: shiftKeys(c.keys, d) }), ...(c.markers && { markers: c.markers.map((m) => ({ ...m, at: m.at - d })).filter((m) => m.at >= 0) }) }))
       }
       const most = clip.source === undefined || clip.curve ? Infinity : clip.start + Math.floor((clip.source - (clip.in ?? 0)) / speed)
       const after = isMain(track) && t.magnet ? Infinity : Math.min(Infinity, ...track.clips.filter((c) => c.id !== clip.id && c.start >= end(clip)).map((c) => c.start))
       const stop = Math.max(clip.start + 1, Math.min(to, most, after))
-      return stop === end(clip) ? t : change(t, clip.id, (c) => ({ ...c, length: stop - c.start }))
+      return stop === end(clip) ? t : change(t, clip.id, (c) => ({ ...c, length: stop - c.start, ...(c.shows !== undefined && { shows: (c.shows * (stop - c.start)) / c.length }) }))
     }
     case "split": {
       const at = whole(op.at)
@@ -201,7 +201,7 @@ function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
         if (rest.speed !== undefined && !(rest.speed > 0)) no("a speed is more than 0")
         const points = curve === undefined ? clip.curve : (curve ?? undefined)
         // the same frames of source, at the new pace
-        c = { ...c, curve: points, length: Math.max(1, whole(points ? played(points, source) : source / speedOf(c))) }
+        c = { ...c, curve: points, shows: points ? source : undefined, length: Math.max(1, whole(points ? played(points, source) : source / speedOf(c))) }
       }
       return change(t, clip.id, () => c)
     }
@@ -271,8 +271,9 @@ function halves(c: Clip, at: Frames, id: string): [Clip, Clip] {
     const ks = Object.fromEntries(parts.filter(([, h]) => h[i].length).map(([p, h]) => [p, h[i]]))
     return Object.keys(ks).length ? ks : undefined
   }
-  const left: Clip = { ...c, length: d, fadeOut: undefined, keys: keysOf(0), markers: c.markers?.filter((m) => m.at < d) }
-  const right: Clip = { ...c, id, start: at, length: c.length - d, fadeIn: undefined, keys: keysOf(1), markers: c.markers?.filter((m) => m.at >= d).map((m) => ({ ...m, at: m.at - d })), ...(c.in !== undefined && { in: c.in + Math.round(d * speedOf(c)) }) }
+  const share = (len: number) => (c.shows === undefined ? {} : { shows: (c.shows * len) / c.length })
+  const left: Clip = { ...c, ...share(d), length: d, fadeOut: undefined, keys: keysOf(0), markers: c.markers?.filter((m) => m.at < d) }
+  const right: Clip = { ...c, ...share(c.length - d), id, start: at, length: c.length - d, fadeIn: undefined, keys: keysOf(1), markers: c.markers?.filter((m) => m.at >= d).map((m) => ({ ...m, at: m.at - d })), ...(c.in !== undefined && { in: c.in + Math.round(d * speedOf(c)) }) }
   return [left, right]
 }
 

@@ -48,6 +48,8 @@ export interface Clip {
   /** a constant speed (1 when unset), or a curve, which wins (TL6) */
   speed?: number
   curve?: SpeedPoint[]
+  /** under a curve: how many source frames the clip shows (its length is the time the curve takes over them) */
+  shows?: Frames
   /** turned off: drawn dimmed, left out of the picture and the sound (TL3g) */
   off?: boolean
   /** it can't be changed here, and why ("set in code", TL0c) */

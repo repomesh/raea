@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { apply, applyAll, type Clip, empty, find, length, type Op, type Timeline, valueAt } from "../src"
+import { apply, applyAll, type Clip, CURVES, empty, find, length, type Op, type Timeline, valueAt } from "../src"
 
 const clip = (id: string, start: number, len: number, more: Partial<Clip> = {}): Clip => ({ id, kind: "video", start, length: len, ...more })
 /** a main track of three clips (a 0-30, b 30-90, c 90-120), a title over b, music under all of it */
@@ -162,5 +162,11 @@ describe("TL6: speed", () => {
     const t = done(film(), { op: "set", id: "b", set: { curve: [{ at: 0, speed: 2 }, { at: 1, speed: 2 }] } })
     expect(at(t, "b").length).toBe(30)
     expect(at(done(t, { op: "set", id: "b", set: { curve: null } }), "b").length).toBe(60)
+    // every preset, on and off again: the clip is exactly as long as it was
+    for (const [name, curve] of Object.entries(CURVES)) {
+      const on = done(film(), { op: "set", id: "b", set: { curve } })
+      expect(at(done(on, { op: "set", id: "b", set: { curve: null } }), "b").length, name).toBe(60)
+      expect(at(done(on, { op: "set", id: "b", set: { curve: null } }), "b").shows).toBeUndefined()
+    }
   })
 })

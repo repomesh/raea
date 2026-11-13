@@ -7,7 +7,7 @@ const done = (t: Timeline, op: Parameters<typeof apply>[1]) => {
   return r.timeline
 }
 // a 10 s film at 30 fps cut at 3 s and 6 s
-const film = () => fromRender({ frames: 300, fps: 30, cuts: [90, 180], sound: true })
+const film = () => fromRender({ frames: 300, fps: 30, cuts: [90, 180] })
 
 describe("TL10a: an edited film plays from its own frames, with no render", () => {
   test("unedited, each frame shows itself", () => {

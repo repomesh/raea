@@ -45,14 +45,13 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   return { ...empty(fps), tracks, magnet: gapless }
 }
 
-/** A film with no composition behind it: its scenes as clips of one main track (cut where the picture cuts), and
- *  its sound as one clip under them. Its magnet is on: a scene removed closes up, as a cut of footage does. */
-export function fromRender(o: { frames: Frames; fps: number; cuts?: Frames[]; sound?: boolean }): Timeline {
+/** A film with no composition behind it: its scenes as clips of one main track (cut where the picture cuts). Each
+ *  clip is the film's picture and its sound together, as footage is until its sound is extracted (TL4c), so a cut,
+ *  a move or a speed takes both. Its magnet is on: a scene removed closes up, as a cut of footage does. */
+export function fromRender(o: { frames: Frames; fps: number; cuts?: Frames[] }): Timeline {
   const edges = [0, ...[...new Set(o.cuts ?? [])].filter((c) => c > 0 && c < o.frames).sort((a, b) => a - b), o.frames]
   const scenes: Clip[] = edges.slice(0, -1).map((from, n) => ({ id: `scene-${n + 1}`, kind: "video", name: `Scene ${n + 1}`, start: from, length: edges[n + 1] - from, in: from, source: o.frames }))
-  const tracks: Track[] = [{ id: "main", kind: "main", clips: scenes }]
-  if (o.sound) tracks.push({ id: "sound-1", kind: "sound", clips: [{ id: "sound", kind: "audio", name: "Sound", start: 0, length: o.frames, in: 0, source: o.frames }] })
-  return { ...empty(o.fps), tracks }
+  return { ...empty(o.fps), tracks: [{ id: "main", kind: "main", clips: scenes }] }
 }
 
 /** A render's cut, as the frames of the source played in order (the hand edit's `segments`): what a film's main

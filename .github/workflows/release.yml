@@ -254,7 +254,10 @@ jobs:
           v=2.16.03
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/nasm.zip" "https://www.nasm.us/pub/nasm/releasebuilds/$v/win64/nasm-$v-win64.zip"
           unzip -q "$RUNNER_TEMP/nasm.zip" -d "$RUNNER_TEMP"
-          "$RUNNER_TEMP/nasm-$v/nasm.exe" -v | tee /dev/stderr | grep -q "version $v"
+          # Git Bash on Windows has no /dev/stderr (rc5 stopped here): capture, print, then match
+          out=$("$RUNNER_TEMP/nasm-$v/nasm.exe" -v)
+          echo "$out"
+          case $out in *"version $v"*) ;; *) echo "::error::expected NASM $v, got: $out"; exit 1 ;; esac
           echo "$RUNNER_TEMP/nasm-$v" >> "$GITHUB_PATH"
       # jq for Windows ends -r lines with CRLF, so tools/bevy-plugins.sh read "ahoy\r" and lost its Bevy 0.20 block
       # (feature `ahoy` not found, 11-04); -b writes LF

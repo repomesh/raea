@@ -28,8 +28,11 @@ Feature: Scene: a feed item that is raea 3D looked at from inside
 
   Background:
     Given the app's code is apps/app (raea-feed): src/scene, src/detail/views/Scene.tsx, host/scene, samples/scene
-    And the engine is unchanged: the inspector is built on stage.show, stage.pick, stage.view, stage.locate, stage.seek
-      and stage.play as docs/preview.feature PV1 left them
+    And the inspector is built on stage.show, stage.pick, stage.view, stage.locate, stage.seek and stage.play as
+      docs/preview.feature PV1 left them, and on three calls added for it (raea-sys-frame hold.rs, raea-runtime-live
+      pick3d.rs, raea-page-stage): stage.part (where a part stands), stage.hold (a part drawn where a drag has it)
+      and stage.wire (wireframe). On a raea without them it still works: handles from the code's numbers, no live
+      drag, and Wireframe says it can't yet
     And everything the inspector knows of the camera is where points of the scene are on the picture (stage.locate):
       a plane of the scene is mapped to the picture by a homography from four of its points (src/scene/math.ts), so a
       drag is read in true metres from the scene's own camera as from a free one, whatever lens the scene wrote
@@ -73,17 +76,29 @@ Feature: Scene: a feed item that is raea 3D looked at from inside
       And the scene opens on its own camera, as its author framed it
 
     @done
-    Scenario: SF2d. One toolbar
-      Then the side toolbar holds every tool: Look, Comment, Draw, Path, Frame, Check, Quality, and Board on an item
-        with several entries; Move, Turn and Scale stand in it only while a part a hand can change is picked
+    Scenario: SF2d. The tools' bar
+      Then the side toolbar holds every tool: Look, Comment, Draw, Path, Check, Wireframe, Quality, and Board on an
+        item with several entries; Move, Rotate and Scale stand in it only while a part a hand can change is picked
       And each says what it does and its key in its tooltip, as do the handles, the keys, the card's rows and buttons
         and the kinds of problem a comment can mark
+
+    @done
+    Scenario: SF2e. The view has a toolbar of its own
+      # Shane, 11-13: "lets have separated toolbars for movement controls and maybe some kind of hint if movement
+      # controls have a shortcut by putting it in the tooltip". src/scene/NavBar.tsx, on the stage's right edge.
+      Then across from the tools is the view's bar: Orbit (1), Pan (2) and Zoom (3) set what a plain drag does, Frame
+        (F) goes onto the picked part or the whole scene, and the scene's camera (0) goes back to the shot as written
+      And each tooltip says its key and the gesture that does the same from any mode (Shift-drag slides, scrolling
+        moves in and out, the arrows walk)
 
     @done
     Scenario: SF2b. The timeline is the watch view's own
       Given a scene whose composition has a length
       Then under the picture is the feed's one timeline (detail/blocks/Filmstrip.tsx, as under a render): play and the
         time on its row, the playhead, the comments' marks at their moments, a press or a drag to seek
+      And its lanes are the scene's own frames, cuts and sound, from a render of the scene as it is now (host/scene
+        film: kept by the file's state, made in the background a moment after it is live and after each change, not
+        while this Mac is short of memory); the strip keeps one height before and after it arrives
       Given a still scene, a prop or a model
       Then there is no timeline
 
@@ -126,6 +141,12 @@ Feature: Scene: a feed item that is raea 3D looked at from inside
       When Check is pressed
       Then raea's scene lint (docs/scene.feature) runs on the frame shown and says what floats, sinks or clips
 
+    @done
+    Scenario: SF3e. Seeing what a mesh is made of
+      When Wireframe is on
+      Then every mesh is drawn as its edges over its shading (Bevy's wireframe pass, on the stage's scenes only: a
+        render's graph never has it), through play, a seek and a change to the code
+
   Rule: SF4. Moving, turning and scaling a part by hand
     # Status 11-13: built (src/scene/Gizmo.tsx; host/scene/place.ts). Both forms raea scenes are written in are read
     # and written: Bevy's Transform chain (fromXyz, withRotation(Quat.fromEuler("XYZ", ...)), withScale; a lookingAt
@@ -145,6 +166,23 @@ Feature: Scene: a feed item that is raea 3D looked at from inside
       And while it is dragged its outline and the amount show; on release the new placement is written into its JSX
         in the form it is in, and the stage shows it
       And its card has the same numbers to type over, and Undo
+
+    @done
+    Scenario: SF4c. The part follows the drag
+      # checked in the built app's headless window: mid-drag the jar stood 43.2 cm along x with its card still
+      # reading its old numbers, and the release wrote them
+      Then while a handle is dragged the part itself is drawn where the drag has it (the stage holds it there;
+        nothing is written), its outline and handles with it, and the amount beside it
+      And the release writes it; a drag let go where it began writes nothing and the part goes back
+
+    @done
+    Scenario: SF4d. A part inside a group that moves or turns it
+      # the sample's jar on a trolley turned 0.7 rad: a 43.25 cm drag along the world's x wrote (-0.1308, 0.65,
+      # -0.2786) from (0.2, 0.65, 0), that step turned back by the trolley's turn
+      Then its handles stand on it where it is drawn (the stage says where a part stands)
+      And a step in the world is written as the step in the space its code counts in: raea's groups are worked into
+        each part's own place before the engine sees them, so that space is read from the part's turn and size in the
+        world against those its code writes
 
     @done
     Scenario: SF4b. A part placed by code has no handles
@@ -245,25 +283,9 @@ Feature: Scene: a feed item that is raea 3D looked at from inside
       And each comment in a scene tells the agent its point in the scene's space, the part and where it is written
 
   Rule: SF8. Open
-    Scenario: SF8a. The part itself moving under the pointer
-      # today its outline moves and the part follows on release (the stage opens the file again). Needs a stage call
-      # that holds a part's Transform over the composition's, as stage.view holds the camera
-      Then a dragged part is drawn where it is dragged, frame by frame
-
-    Scenario: SF8b. A part inside a group that moves it
-      # its numbers are in the group's space, so it gets no handles (the card says so). Needs stage.pick to answer the
-      # part's and its parent's world transforms
-      Then its handles stand on it and move it in its parent's space
-
-    Scenario: SF8c. Seeing the mesh and the shading
-      # wireframe, normals and overdraw views to look at what a Mesh or Shader comment marks: an engine view mode
-      Then the picture can be drawn as wireframe or by normals from the toolbar
-
-    Scenario: SF8d. Stills along the timeline
-      # the strip's picture lane is a render's filmstrip; a scene has none, so the lane is empty
-      Then a timed scene's picture lane shows its stills through time
-
     Scenario: SF8e. Taught to agents
-      # feed_post's type list is in the generated skills reference: when raea-feed's main takes this, teach scene in
-      # raea-skills skills/raea/collaborate.md and regenerate reference/feed.md (L1 calls both stale until then)
+      # feed_post's type list is in the generated skills reference. Teaching `scene` is a change to raea-skills
+      # (skills/raea/collaborate.md's "When you need to..." table, and reference/feed.md regenerated), which is public
+      # and merges by PR: it goes with the merge of raea-feed's branch scene, at Shane's word. Until then L1 is
+      # untouched, since raea-feed main has not changed
       Then the raea skill says when to post a scene and what the person can do with it

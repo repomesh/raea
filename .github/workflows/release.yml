@@ -60,7 +60,10 @@ jobs:
           - os: ubuntu-24.04
             lib: libraea_bundle.so
             extra: raea-perceive
-    runs-on: ${{ matrix.os }}
+    # a faster runner when the repo names one: vars RELEASE_MAC_RUNNER, RELEASE_LINUX_RUNNER, RELEASE_WINDOWS_RUNNER hold
+    # a JSON list of runs-on labels (Namespace's: a machine and a cache volume); else GitHub's
+    # own, a 3-core M1 with 7 GB on the Mac, where a cold build took 3 hours
+    runs-on: ${{ (matrix.os == 'macos-15' && vars.RELEASE_MAC_RUNNER && fromJSON(vars.RELEASE_MAC_RUNNER)) || (matrix.os == 'ubuntu-24.04' && vars.RELEASE_LINUX_RUNNER && fromJSON(vars.RELEASE_LINUX_RUNNER)) || matrix.os }}
     # a cold thin-LTO build of raea-cli with the plugin catalog is the long part; GitHub's own limit is 6 hours
     timeout-minutes: 340
     env:
@@ -100,7 +103,7 @@ jobs:
       # rc3's build left 576 MB of macos-15's 320 GB free, and rc4's dSYMs (#88) ran it out linking raea-page-host
       # (ld: write() failed, errno=28): the image's other Xcodes and the Android and .NET SDKs go first
       - name: Room for the build
-        if: runner.os == 'macOS' && env.RAEA_PROMOTED_FROM == ''
+        if: runner.os == 'macOS' && env.RAEA_PROMOTED_FROM == '' && vars.RELEASE_MAC_RUNNER == ''
         run: |
           df -h . | tail -1
           keep=$(cd "$(xcode-select -p)/../.." && pwd -P)
@@ -114,12 +117,33 @@ jobs:
       # A bucket is read by every tag. A cold build fills it; a candidate after a small change compiles only the crates
       # that changed and the ones above them. Linking (thin LTO) and build scripts' runs aren't cached. With no secrets
       # (a fork) the build runs as before, uncached.
+      # the build folder and cargo's downloads kept between runs on the runner's cache volume (Namespace: vars
+      # RELEASE_RUNNER_CACHE=1 when the runner labels attach one), so a candidate rebuilds only what changed and links;
+      # sccache below still serves the workspace's own crates, which a fresh checkout's file times mark as changed
+      - name: The build folder, kept on the runner's cache volume
+        if: env.RAEA_PROMOTED_FROM == '' && vars.RELEASE_RUNNER_CACHE == '1'
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ${{ github.workspace }}/target
+            ~/.cargo/registry
+            ~/.cargo/git
       - name: Compile cache (sccache)
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
         uses: mozilla-actions/sccache-action@v0.0.9
+      # the script from this workflow's own commit: a dispatched run (a dry run that fills the cache) builds an older
+      # tag, whose tree may not have it
+      - name: The compile cache's script
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .workflow
+          sparse-checkout: tools/release/compile-cache.sh
+          sparse-checkout-cone-mode: false
       - name: Use the compile cache
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
-        run: bash tools/release/compile-cache.sh
+        run: bash .workflow/tools/release/compile-cache.sh
       - name: Build
         if: env.RAEA_PROMOTED_FROM == ''
         run: |
@@ -142,6 +166,8 @@ jobs:
         run: bash tools/release/promoted-bins.sh "$RAEA_PROMOTED_FROM" ship
       # the packing and its checks need only ship/, and macos-15's disk ran out packing rc1 with target/ kept
       - name: Free the build's disk
+        # not the cache volume's build folder, which the next candidate starts from (a bind mount on Linux)
+        if: vars.RELEASE_RUNNER_CACHE != '1'
         run: |
           df -h . | tail -1
           rm -rf target
@@ -195,7 +221,7 @@ jobs:
   # accept no licence and download no Microsoft files). The C runtime is the DLL one (the VC++ redistributable): ort's
   # prebuilt ONNX Runtime is built against it, so crt-static doesn't link (LNK2019 on __imp_ symbols, 10-29).
   windows:
-    runs-on: windows-latest
+    runs-on: ${{ (vars.RELEASE_WINDOWS_RUNNER && fromJSON(vars.RELEASE_WINDOWS_RUNNER)) || 'windows-latest' }}
     timeout-minutes: 350
     env:
       # the compile cache, as build's
@@ -242,12 +268,30 @@ jobs:
           done < <(tr -d '\r' < tools/release/models.tsv)
       # the app targets' hosts a cargo call each: with raea-cli's crates in one call taffy's features unify and
       # rune-taffy doesn't build; raea-perceive (`raea song`'s map, #43) a call of its own too
+      - name: The build folder, kept on the runner's cache volume (as build's)
+        if: env.RAEA_PROMOTED_FROM == '' && vars.RELEASE_RUNNER_CACHE == '1'
+        uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          path: |
+            ${{ github.workspace }}/target
+            ~/.cargo/registry
+            ~/.cargo/git
       - name: Compile cache (sccache, as build's)
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
         uses: mozilla-actions/sccache-action@v0.0.9
+      # the script from this workflow's own commit: a dispatched run (a dry run that fills the cache) builds an older
+      # tag, whose tree may not have it
+      - name: The compile cache's script
+        if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: .workflow
+          sparse-checkout: tools/release/compile-cache.sh
+          sparse-checkout-cone-mode: false
       - name: Use the compile cache
         if: env.RAEA_PROMOTED_FROM == '' && env.AWS_ACCESS_KEY_ID != ''
-        run: bash tools/release/compile-cache.sh
+        run: bash .workflow/tools/release/compile-cache.sh
       - name: Build
         if: env.RAEA_PROMOTED_FROM == ''
         run: |

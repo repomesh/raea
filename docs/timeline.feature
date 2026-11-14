@@ -71,21 +71,28 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
        drawn kept: a range's frames are kept by what draws them, an edit drops only the ranges it changed, and the
        store keeps itself under a size the person sets.
 
-  Status, 11-13 (the first day). On raea main: sdk/timeline (model, ops with inverses, keys and bezier easing, speed
-  curves, snapping, the frame store's decisions, live playback's mapping, readers for a composition's sequences, a
-  film's scenes and a sound's tracks, the palette a plugin adds to; 53 tests) and <Nudge keys> in sdk/video. In
-  raea-feed, draft PR #19 (off unless localStorage raea.timeline-sdk is 1; 11 browser tests, seen in a raea window):
-    built      TL0a-c, TL1a-c, TL2a-e (zoom and scroll partly), TL3a-f (copy and paste aside), TL3g's groups, TL3i,
-               TL4a-c (linkage for what sits over a main clip), TL5a-c, TL5d for a sequence's x, y, scale, rotate and
-               opacity, TL6a-b (presets, no custom points), TL7a (kinds and length; not drawn in the picture), TL8a's
-               waveform and level, TL9a-c for a film's cut, a composition's sequences and keys, and a sound's clips,
-               TL10a for a film's own frames (cuts, moves, trims and speeds play at once; the player's buffer on the
-               ruler), TL11a for easings, speed curves and transitions as a plugin's data, TL12a-b, TL14a-b
-    decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first): the stage
-               that draws frames and the store that holds them aren't built
-    not built  TL0d, TL1d, TL3g's compound clips, TL3h, speed and transitions as code edits, components and media as
-               clips of their own, TL7b-c, TL8a's fades and volume line, TL8b-c, TL9d, TL10d-f for compositions and
-               3D, TL11a's track and clip kinds, tools and snapping targets, TL13, TL14c beyond one clip
+  Status, 11-13 (the first day). On raea main: sdk/timeline (model, ops with inverses, compound clips, keys and
+  bezier easing, speed curves, snapping, the frame store's decisions, live playback's mapping, readers for a
+  composition's sequences and its footage and sound, a film's scenes and a sound's tracks, the palette a plugin adds
+  to; 57 tests), and in sdk/video <Nudge keys> and <Transition in out> (fade, slide, wipe, zoom). In raea-feed, draft
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 12 browser
+  tests in Chrome, 5 of them also passing in a headless raea window (the rest stop at helpers its runner lacks):
+    built      TL0a-c, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
+               TL2a-e, TL3a-e, TL3g, TL3i, TL4a-c, TL5a-c, TL6a-b's presets, TL7a, TL8a's waveform and level,
+               TL11a for easings, speed curves and transitions as a plugin's data, TL12a-b, TL14a-c
+    in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
+               (TL5d), a speed for a sequence that holds footage (TL6a), a transition on a cut (TL7a), a <Video>'s
+               or an <Audio>'s level (TL8a); each written into the working version the moment it is made, its draft
+               played over the picture (TL9a, TL10d), finished and posted on Send with the agent told (TL9b). A
+               scene's sequences: move, trim, split, delete written into the scene's own file, which the stage
+               opens again (TL14c). A sound's clips: span, place in the file, level (TL14b)
+    plays      TL10a for a film's own frames: cuts, moves, trims and speeds at once, the player's buffer on the ruler
+    decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first): a store of
+               drawn frames by range, under a size limit, isn't built; a composition's drafts are kept by their
+               source (the newest 24), so an undo plays its draft again at once
+    not built  TL0d (a feed item or a controller declaring a timeline of its own data), TL1d, TL3f, TL3h, a speed
+               curve on a sequence, TL7b-c, TL8a's fades and volume line, TL8b-c, TL9d, TL10f for 3D beyond the
+               stage's own play, TL11a's track and clip kinds, tools and snapping targets, TL13's measurements
 
   Background:
     Given the SDK is sdk/timeline in raea, the app's side is raea-feed src/detail (timeline, strip, blocks), the

@@ -97,7 +97,9 @@ Feature: Lightspeed: raea as fast as anything could be, with the best quality, m
         at full size, 1.6 to 1.7 s at 0.5 (1.7 times end to end, about twice on the frames once the start is taken
         out); the shot frames the same. The app's composition drafts and a scene's kept frames write it in their
         throwaway source (raea-feed host/edit.ts withDraftScale: the long side at 960 px, never larger, never under a
-        quarter; RAEA_DRAFT_SCALE=1 draws them at full size). What ships is never scaled
+        quarter; RAEA_DRAFT_SCALE=1 draws them at full size). What ships is never scaled. It pays where the GPU
+        does the work: the feed's sample room, a light scene, redraws two 3 s ranges in a headless raea window in
+        8.9 s scaled against 9.4 s, since there the time is each render's start and its JavaScript, not pixels
       And open: the full-size render itself. Two to three times there is the cheaper trace upscaled (Solari at a
         lower main-pass resolution, Bevy's MainPassResolutionOverride, with MetalFX's denoised scaler taking it to
         full size: its input is the output's size today and it runs before the forward meshes), a rendering decision

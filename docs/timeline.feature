@@ -130,7 +130,9 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                long side at 960 px; docs/lightspeed.feature PF4): a ray-traced 1080p shot's draft 2.75 s at full
                size, 1.7 s scaled
     not built  TL13a's drag at the window's rate with 400 clips (measured below: Chrome keeps it, raea's window
-               draws 35 to 37 frames a second, and what is left is the window's own frame after a change). The
+               draws 35 to 37 frames a second, and what is left is the window's own frame after a change; drawing
+               only the clips in view would draw none fewer, since at its opening fit all 12 tracks and all 400
+               clips are on screen at once). The
                skills guide's note on an item's `timeline` field waits for PR #19 to merge
 
   Background:

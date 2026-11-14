@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { apply, clipEdits, fromRender, fromSequences, fromTracks, segmentsOf, seqEdits, type Timeline } from "../src"
+import { apply, clipEdits, fromRender, fromSequences, fromTracks, readTimeline, segmentsOf, seqEdits, type Timeline } from "../src"
 
 const done = (t: Timeline, op: Parameters<typeof apply>[1]) => {
   const r = apply(t, op)
@@ -121,5 +121,34 @@ describe("TL14b: a sound in the feed is its tracks", () => {
     now = done(now, { op: "set", id: "bed", set: { volume: 1 } })
     expect(clipEdits(t, now)).toEqual([{ id: "bed", src: "audio/bed.wav", from: { start: 0, end: 8, offset: 1, gainDb: -6 }, to: { start: 2, end: 9, offset: 2, gainDb: 0 } }])
     expect(clipEdits(t, t)).toEqual([])
+  })
+})
+
+describe("TL0d: a feed item or a controller declares a timeline of its own data", () => {
+  test("what is well formed is a timeline the editor takes; the rest is said", () => {
+    const { timeline, errors } = readTimeline({
+      fps: 1,
+      tracks: [
+        { id: "stage", kind: "main", name: "Main stage", clips: [{ id: "doors", name: "Doors", start: 0, length: 1800 }, { id: "set-1", name: "First set", start: 1800.4, length: 2700 }] },
+        { name: "Bar", clips: [{ id: "happy", start: 0, length: 3600, props: { price: 5 } }, { id: "doors", start: 10, length: 5 }, { start: 0, length: 5 }, { id: "bad", start: -5, length: 0 }] },
+      ],
+      markers: [{ at: 1800, name: "Curfew" }],
+    })
+    expect(timeline!.fps).toBe(1)
+    expect(timeline!.tracks.map((k) => [k.id, k.kind, k.name, k.clips.map((c) => `${c.id} ${c.start}+${c.length}`)])).toEqual([
+      ["stage", "main", "Main stage", ["doors 0+1800", "set-1 1800+2700"]],
+      ["track-2", "overlay", "Bar", ["happy 0+3600"]],
+    ])
+    expect(timeline!.tracks[1].clips[0].props).toEqual({ price: 5 })
+    expect(timeline!.markers).toEqual([{ id: "m1", at: 1800, name: "Curfew" }])
+    expect(timeline!.magnet).toBe(false)
+    expect(errors).toEqual(["tracks[1].clips[1]: the id doors is used twice", "tracks[1].clips[2] has no id", "tracks[1].clips[3] (bad) starts at 0 or later and is one frame or longer"])
+    // and it is edited as any other
+    expect(done(timeline!, { op: "move", ids: ["set-1"], by: 600 }).tracks[0].clips[1].start).toBe(2400)
+  })
+
+  test("what isn't a timeline says what one is", () => {
+    expect(readTimeline("x").errors[0]).toContain("a timeline is an object")
+    expect(readTimeline({ fps: 30 })).toEqual({ errors: ["tracks is a list of { id, kind, clips }"] })
   })
 })

@@ -235,3 +235,45 @@ export function clipEdits(read: Timeline, now: Timeline): { id: string; src: str
     }
   return out
 }
+
+// ---------------------------------------------------------------- a timeline an item declares (TL0d)
+
+/** A timeline as an agent wrote it on a feed item or a controller's field (its own data: a schedule, a set list, a
+ *  shot plan), checked and made whole: what is well formed, and why the rest isn't. Frames are rounded to whole
+ *  ones; a track with no kind is an overlay; ids must be there and not repeat. */
+export function readTimeline(raw: unknown): { timeline?: Timeline; errors: string[] } {
+  const errors: string[] = []
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { errors: ["a timeline is an object: { fps, tracks: [{ id, kind, clips: [{ id, start, length }] }] }"] }
+  const r = raw as Record<string, unknown>
+  const fps = typeof r.fps === "number" && r.fps > 0 ? r.fps : 30
+  if (r.fps !== undefined && fps !== r.fps) errors.push("fps is a number above 0 (30 was taken)")
+  if (!Array.isArray(r.tracks)) return { errors: [...errors, "tracks is a list of { id, kind, clips }"] }
+  const seen = new Set<string>()
+  const whole = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? Math.round(n) : NaN)
+  const tracks: Track[] = []
+  r.tracks.forEach((k, n) => {
+    const t = (k ?? {}) as Record<string, unknown>
+    const id = typeof t.id === "string" && t.id ? t.id : `track-${n + 1}`
+    if (tracks.some((o) => o.id === id)) return void errors.push(`tracks[${n}]: the id ${id} is used twice`)
+    const clips: Clip[] = []
+    for (const [m, c] of (Array.isArray(t.clips) ? t.clips : []).entries()) {
+      const x = (c ?? {}) as Record<string, unknown>
+      const at = `tracks[${n}].clips[${m}]`
+      const start = whole(x.start), len = whole(x.length)
+      if (typeof x.id !== "string" || !x.id) errors.push(`${at} has no id`)
+      else if (seen.has(x.id)) errors.push(`${at}: the id ${x.id} is used twice`)
+      else if (!(start >= 0) || !(len >= 1)) errors.push(`${at} (${x.id}) starts at 0 or later and is one frame or longer`)
+      else {
+        seen.add(x.id)
+        clips.push({ ...(x as unknown as Clip), id: x.id, kind: typeof x.kind === "string" ? x.kind : "clip", start, length: len })
+      }
+    }
+    tracks.push({ id, kind: typeof t.kind === "string" ? t.kind : "overlay", ...(typeof t.name === "string" && { name: t.name }), ...(t.locked === true && { locked: true }), clips: clips.sort((a, b) => a.start - b.start) })
+  })
+  const markers = (Array.isArray(r.markers) ? r.markers : []).flatMap((m, n) => {
+    const x = (m ?? {}) as Record<string, unknown>
+    return whole(x.at) >= 0 ? [{ id: typeof x.id === "string" ? x.id : `m${n + 1}`, at: whole(x.at), ...(typeof x.name === "string" && { name: x.name }), ...(typeof x.color === "string" && { color: x.color }) }] : []
+  })
+  // its data is where the agent put it: no magnet unless it says so
+  return { timeline: { ...empty(fps), tracks, markers, magnet: r.magnet === true, snapping: r.snapping !== false, linkage: r.linkage === true }, errors }
+}

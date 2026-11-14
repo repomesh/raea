@@ -78,12 +78,13 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 25 browser
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 26 browser
   tests in Chrome; of the 21 that can run in a headless raea window (all but the voice test, which there would ask
   for this Mac's microphone) 19 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
   effects, groups and compounds, the posted item's, and a plugin's effect, text style, tool and snap grid; the other
-  two stop at the runner (a route answered late, a reload in the middle of a test). The three added since (TL5c, TL9c,
-  TL10d's film) are Chrome's alone: one calls the page's own module, and two hold the host's answers or reload:
+  two stop at the runner (a route answered late, a reload in the middle of a test). Of the four added since, TL10e's
+  passes in the window too; three (TL5c, TL9c, TL10d's film) are Chrome's alone: one calls the page's own module, and
+  two hold the host's answers or reload:
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
                TL1d (the poster on the main track's head: a click makes the playhead's frame the poster),
                TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,
@@ -105,7 +106,13 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                editor_selection gives by clip id: one step in the person's history, undo taking it back, Send
                telling it as the agent's own, the clips it touched ringing and the bar saying what it did), TL9d
                (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL10d (below),
-               TL11b (the model as raea/editor, with its reference page and an example), TL12a-b, TL14a-c (a
+               TL10e (a composition's drafts and a scene's ranges kept in the proxy store, <store>/drafts and
+               <store>/scene-frames, under its one limit with the copies: one line by last play across all of
+               them, so a draft played an hour ago goes before a still looked at a minute ago; Settings › Light
+               copies lists drafts of edits and scene ranges with their sizes and Clear takes them; finishing or
+               discarding a sitting forgets its drafts at once, and any ranges of the discarded version; kept
+               frames whose file is gone go at the next sweep, as a copy whose source is gone does. Seen on a real
+               host on its own port: 1 draft and 2 ranges listed as 15,000 bytes, Clear freeing all three), TL11b (the model as raea/editor, with its reference page and an example), TL12a-b, TL14a-c (a
                scene's timeline as long as the scene, past its last sequence)
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
                (TL5d), its still placement as its <Nudge>'s props, mirror and crop among them (TL3h), a speed or a
@@ -121,8 +128,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                player's buffer on the ruler. TL10f: a timed 3D scene's frames are drawn ahead by the host a few
                seconds at a time at draft quality and kept by range, each range under what it is drawn from (the
                code outside the scene's sequences and the sequences on in it), so an edit to one sequence draws
-               again only the ranges it is on and an undo plays what it had; the store stays under a size
-               (RAEA_SCENE_FRAMES_LIMIT, 1 GiB), the least recently played going first, and beside the switch the
+               again only the ranges it is on and an undo plays what it had; the store stays under its one
+               limit (TL10e), the least recently played going first, and beside the switch the
                scene's kept frames say what they take and are cleared by a click; the scene's timeline
                shows what is kept, and Play runs it over the stage from the scene's own camera. TL10d: where play
                reaches a range not kept yet while the frames are being drawn, the picture holds on it saying
@@ -134,8 +141,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                pressed at once, Buffering to 7.7 s, the first range played, Buffering again at its end (11.0 s)
                until the next was kept (13.5 s)
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
-               composition's drafts are kept by their source, the least recently played going first under 1 GiB
-               (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once; beside a composition's timeline the
+               composition's drafts are kept by their source, so an undo plays its draft again at once (and under
+               the store's one limit since TL10e); beside a composition's timeline the
                kept drafts say what they take and are cleared by a click. Drafts and a scene's kept frames are
                drawn smaller than they ship and laid out as they ship (raea's <Composition edit={{ scale }}>, the
                long side at 960 px; docs/lightspeed.feature PF4): a ray-traced 1080p shot's draft 2.75 s at full

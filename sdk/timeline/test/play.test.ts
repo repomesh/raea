@@ -45,4 +45,22 @@ describe("TL10a: an edited film plays from its own frames, with no render", () =
     expect(ready(t, [[0, 120], [210, 300]])).toEqual([[0, 90], [120, 210]])
     expect(ready(film(), [[0, 300]])).toEqual([[0, 300]])
   })
+
+  test("a still holds its frame and footage played backward runs from its last frame: both stepped by the timeline", () => {
+    // a 2 s still of the frame at 1 s, put into the first scene there
+    const t = done(film(), { op: "freeze", at: 30, length: 60 })
+    expect(t.tracks[0].clips.map((c) => `${c.id} ${c.start}-${c.start + c.length}${c.freeze ? " still" : ""}`)).toEqual(["scene-1 0-30", "scene-1-still+ 30-90 still", "scene-1+ 90-150", "scene-2 150-240", "scene-3 240-360"])
+    expect(showing(t, 29)).toMatchObject({ source: 29, rate: 1 })
+    expect([30, 60, 89].map((f) => showing(t, f)!.source)).toEqual([30, 30, 30])
+    expect(showing(t, 60)!.rate).toBe(0)
+    expect(showing(t, 90)).toMatchObject({ source: 30, rate: 1 })
+    expect(frameOf(t, "scene-1-still+", 30)).toBeUndefined()
+    // the second scene (source 90 to 180) backward: its first frame shows the scene's last
+    const r = done(film(), { op: "set", id: "scene-2", set: { reverse: true } })
+    expect([90, 91, 179].map((f) => showing(r, f)!.source)).toEqual([179, 178, 90])
+    expect(showing(r, 100)!.rate).toBe(-1)
+    // a still is ready when its one frame is
+    expect(ready(t, [[0, 40]])).toEqual([[0, 100]])
+    expect(apply(film(), { op: "freeze", at: 500, length: 60 })).toEqual({ ok: false, why: "no clip is under the playhead" })
+  })
 })

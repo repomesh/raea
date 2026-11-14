@@ -29,6 +29,8 @@ describe("TL0b: an operation is a pure function with an inverse", () => {
     { op: "cut", id: "b", side: "left", at: 50 },
     { op: "duplicate", ids: ["c"] },
     { op: "compound", ids: ["a", "title"] },
+    { op: "freeze", at: 40, length: 90 },
+    { op: "set", id: "b", set: { reverse: true } },
     { op: "set", id: "b", set: { speed: 2 } },
     { op: "key", id: "b", prop: "scale", at: 10, value: 1.2 },
     { op: "mark", marker: { id: "m1", at: 45 } },

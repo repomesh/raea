@@ -50,6 +50,10 @@ export interface Clip {
   curve?: SpeedPoint[]
   /** under a curve: how many source frames the clip shows (its length is the time the curve takes over them) */
   shows?: Frames
+  /** footage played backward: its last source frame first (TL3h) */
+  reverse?: boolean
+  /** a still: the source frame `in` held for the clip's whole length (TL3h) */
+  freeze?: boolean
   /** turned off: drawn dimmed, left out of the picture and the sound (TL3g) */
   off?: boolean
   /** it can't be changed here, and why ("set in code", TL0c) */

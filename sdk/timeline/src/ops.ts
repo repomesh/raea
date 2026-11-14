@@ -26,7 +26,10 @@ export type Op =
   /** a clip put on the timeline: on `track`, else the first of `kind` with room, else a new track of that kind */
   | { op: "add"; kind: TrackKind; clip: Clip; track?: string }
   /** a clip's own fields; `props` are merged into its props; a speed or a curve changes its length (TL6) */
-  | { op: "set"; id: string; set: Partial<Pick<Clip, "name" | "off" | "volume" | "fadeIn" | "fadeOut" | "speed" | "group">> & { curve?: SpeedPoint[] | null; props?: Record<string, Value | boolean> } }
+  /** a still of the frame under `at` on a clip (the main track's, when none is named), `length` frames long, put in
+   *  there: the clip is split and the still goes between its halves (TL3h) */
+  | { op: "freeze"; at: Frames; length: Frames; id?: string }
+  | { op: "set"; id: string; set: Partial<Pick<Clip, "name" | "off" | "volume" | "fadeIn" | "fadeOut" | "speed" | "group" | "reverse">> & { curve?: SpeedPoint[] | null; props?: Record<string, Value | boolean> } }
   /** a property's key at a frame of its clip: made, or its value (and ease) changed (TL5a) */
   | { op: "key"; id: string; prop: string; at: Frames; value: Value; ease?: Ease }
   | { op: "unkey"; id: string; prop: string; at: Frames }
@@ -209,6 +212,28 @@ function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
       let next = withTracks(t, (k) => ({ ...k, clips: k.clips.filter((c) => c.id !== clip.id) }))
       for (const m of clip.inside!) next = place(next, m.kind, { ...m.clip, start: clip.start + m.clip.start })
       return next
+    }
+    case "freeze": {
+      const at = whole(op.at)
+      const under = (c: Clip) => c.start <= at && at < end(c)
+      const host = op.id ? open(t, op.id) : (() => {
+        const k = t.tracks.find((x) => isMain(x) && !x.locked) ?? no("there is no main track to hold a still")
+        const c = k.clips.find((x) => under(x) && !x.locked) ?? no("no clip is under the playhead")
+        return { track: k, clip: c }
+      })()
+      const c = host.clip
+      if (!under(c)) no("the playhead isn't on that clip")
+      if (c.in === undefined || c.freeze) no(`${c.name ?? c.id} has no footage to take a still from`)
+      const len = Math.max(1, whole(op.length))
+      const into = at - c.start
+      const first = c.in ?? 0
+      const frame = c.reverse ? first + Math.round((c.length - 1 - into) * speedOf(c)) : first + Math.round(into * speedOf(c))
+      const still: Clip = { id: fresh(t, `${c.id}-still`), kind: c.kind, name: "Freeze", start: at, length: len, in: frame, source: c.source, freeze: true }
+      // the clip's two halves either side of the still (none before it when the playhead is on its first frame),
+      // what follows on the track making room
+      const parts = into > 0 ? halves(c, at, fresh(t, c.id)) : [undefined, c] as const
+      const after = parts[1] ? { ...parts[1], start: at + len } : undefined
+      return withTracks(t, (k) => (k.id !== host.track.id ? k : { ...k, clips: [...k.clips.flatMap((x) => (x.id === c.id ? [parts[0], still, after].filter((y): y is Clip => !!y) : [x.start >= end(c) ? { ...x, start: x.start + len } : x]))] }))
     }
     case "add": {
       if (find(t, op.clip.id)) no(`there is already a clip ${op.clip.id}`)

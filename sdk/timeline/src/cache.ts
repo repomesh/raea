@@ -33,7 +33,7 @@ function look(k: Track, n: number, c: Clip): string {
   const phase = still ? `p${c.in! - c.start * (c.speed && c.speed > 0 ? c.speed : 1)}` : `s${c.start}+${c.length}`
   const keys = Object.entries(c.keys ?? {}).map(([p, ks]) => [p, ks.map((x) => [x.at + c.start, x.value, x.ease ?? "linear"])])
   const fades = [c.fadeIn ? [c.start, c.fadeIn] : 0, c.fadeOut ? [end(c), c.fadeOut] : 0]
-  return JSON.stringify([n, k.kind, c.kind, phase, c.speed ?? 1, c.curve ?? null, c.shows ?? null, c.props ?? null, keys, c.volume ?? 1, fades, c.at ?? null])
+  return JSON.stringify([n, k.kind, c.kind, c.freeze ? `f${c.in}` : c.reverse ? `r${c.start}+${c.length}:${c.in}` : phase, c.speed ?? 1, c.curve ?? null, c.shows ?? null, c.props ?? null, keys, c.volume ?? 1, fades, c.at ?? null])
 }
 
 /** Every drawn thing on the timeline as the span it covers and what it draws there. */

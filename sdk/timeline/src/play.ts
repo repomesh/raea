@@ -22,6 +22,9 @@ export function showing(t: Timeline, frame: Frames): Showing | undefined {
   const c = main(t).find((x) => x.start <= frame && frame < end(x))
   if (!c) return undefined
   const into = frame - c.start
+  // a still holds its frame; footage played backward runs from its last source frame to its first
+  if (c.freeze) return { clip: c, source: c.in!, rate: 0 }
+  if (c.reverse && !c.curve) return { clip: c, source: c.in! + (c.length - 1 - into) * speedOf(c), rate: -speedOf(c) }
   if (c.curve) {
     const span = c.shows ?? c.length / played(c.curve, 1)
     const at = curveAt(c.curve, span, into)
@@ -34,7 +37,8 @@ export function showing(t: Timeline, frame: Frames): Showing | undefined {
 /** The timeline frame at which clip `id` shows source frame `source`, when it does (a constant-speed clip). */
 export function frameOf(t: Timeline, id: string, source: number): Frames | undefined {
   const c = main(t).find((x) => x.id === id)
-  if (!c || c.curve) return undefined
+  // a still and footage played backward are stepped by the timeline's own clock, not read back from the player's
+  if (!c || c.curve || c.freeze || c.reverse) return undefined
   const f = c.start + (source - c.in!) / speedOf(c)
   return f >= c.start - 0.5 && f < end(c) + 0.5 ? Math.min(end(c), Math.max(c.start, f)) : undefined
 }
@@ -54,6 +58,10 @@ export function ready(t: Timeline, source: Range[]): Range[] {
   const out: Range[] = []
   for (const c of main(t)) {
     if (c.curve) continue
+    if (c.freeze) {
+      if (source.some(([a, b]) => a <= c.in! && c.in! < b)) out.push([c.start, end(c)])
+      continue
+    }
     const rate = speedOf(c), from = c.in!, to = c.in! + c.length * rate
     for (const [a, b] of source) {
       const lo = Math.max(a, from), hi = Math.min(b, to)

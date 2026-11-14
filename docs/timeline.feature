@@ -78,18 +78,23 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 26 browser
-  tests in Chrome; of the 21 that can run in a headless raea window (all but the voice test, which there would ask
-  for this Mac's microphone) 19 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
-  effects, groups and compounds, the posted item's, and a plugin's effect, text style, tool and snap grid; the other
-  two stop at the runner (a route answered late, a reload in the middle of a test). Of the four added since, TL10e's
-  passes in the window too; three (TL5c, TL9c, TL10d's film) are Chrome's alone: one calls the page's own module, and
-  two hold the host's answers or reload:
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 28 browser
+  tests in Chrome; of the 27 that can run in a headless raea window (all but the voice test, which there would ask
+  for this Mac's microphone) 22 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
+  effects, groups and compounds, the posted item's, a plugin's effect, text style, tool and snap grid, saved curves,
+  Settings' kept frames and a composition's sound taken out. Of the other five, two stop at the runner (a route
+  answered late, a reload in the middle of a test), two are Chrome's alone (TL9c calls the page's own module, TL10d's
+  film holds the host's answers), and TL4c's film test stops at its last check (which sound played from where, read
+  through an init-script hook the window can't install):
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
                TL1d (the poster on the main track's head: a click makes the playhead's frame the poster),
                TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,
                rotate and crop shown on the player at once, as are a clip's keyed scale, place, turn and opacity),
-               TL3i, TL4a-c, TL5a-b, TL5c (and a curve shaped by hand saved by name for the workspace: kept as
+               TL3i, TL4a-b, TL4c (and a clip's own sound taken out with Cmd+Shift+S: the SDK's extract
+               operation, a sound clip over the same span from the same place in the file, the footage marked
+               muted; in a composition the host mutes the <Video> and writes an <Audio> of its file beside it, read
+               back as clips; in a film cut here the player is silent over that footage and the sound plays from
+               its place in the film wherever it is moved), TL5a-b, TL5c (and a curve shaped by hand saved by name for the workspace: kept as
                timeline/curves.json in its folder, a preset in every timeline there, forgotten by its ×), TL6a-b,
                TL7a, TL7b for raea's ten effects (an effect is a clip of its own,
                shown on the player where it is on), TL7c (text added with T or in a style from the bar, drawn over a

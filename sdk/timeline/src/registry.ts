@@ -59,6 +59,43 @@ export function textStyleError(t: unknown): string | undefined {
   return undefined
 }
 
+/** A tool a plugin adds (TL11a): one press sets these on every picked clip, as one edit each. */
+export interface Preset {
+  id: string
+  title: string
+  set: { props?: Record<string, number | boolean>; speed?: number; volume?: number }
+}
+/** Marks edges snap to that a plugin adds (TL11a): a grid, one mark every `every` seconds from the start. */
+export interface SnapGrid {
+  id: string
+  title: string
+  every: number
+}
+/** The props a preset may set: a clip's placement (what the editor's own tools set). */
+export const PRESET_PROPS = ["x", "y", "scale", "rotate", "opacity", "mirror", "cropLeft", "cropTop", "cropRight", "cropBottom"]
+const titled = (x: { id?: unknown; title?: unknown } | null) => !!x && typeof x.id === "string" && /^[a-z][a-z0-9-]*$/.test(x.id) && typeof x.title === "string" && !!x.title.trim()
+/** Why `p` isn't a preset, or undefined when it is. */
+export function presetError(p: unknown): string | undefined {
+  const x = p as Partial<Preset> | null
+  if (!titled(x)) return "is { id, title, set }: id in lowercase letters, digits and dashes, title what the person sees"
+  const set = x!.set
+  if (!set || typeof set !== "object" || Array.isArray(set) || !Object.keys(set).length) return "set is what it puts on a clip: props, speed or volume"
+  for (const k of Object.keys(set)) if (!["props", "speed", "volume"].includes(k)) return `set.${k}: a tool sets props, speed or volume`
+  if (set.speed !== undefined && !(typeof set.speed === "number" && set.speed >= SLOWEST && set.speed <= FASTEST)) return `set.speed runs from ${SLOWEST} to ${FASTEST}`
+  if (set.volume !== undefined && !(typeof set.volume === "number" && set.volume >= 0 && set.volume <= 2)) return "set.volume runs from 0 to 2"
+  for (const [k, v] of Object.entries(set.props ?? {})) {
+    if (!PRESET_PROPS.includes(k)) return `set.props.${k}: a tool places a clip by ${PRESET_PROPS.join(", ")}`
+    if (!(k === "mirror" ? typeof v === "boolean" : typeof v === "number" && Number.isFinite(v))) return `set.props.${k} is ${k === "mirror" ? "true or false" : "a number"}`
+  }
+  return undefined
+}
+/** The frames a snap grid marks in a timeline `length` frames long (none for a grid finer than a frame, or of more than 5,000 marks). */
+export function gridFrames(grid: SnapGrid, fps: number, length: number): number[] {
+  const step = grid.every * fps
+  if (!(step >= 1) || length / step > 5000) return []
+  return Array.from({ length: Math.floor(length / step) }, (_, i) => Math.round((i + 1) * step))
+}
+
 /** What one plugin adds. */
 export interface Adds {
   eases?: Record<string, Ease>
@@ -70,6 +107,10 @@ export interface Adds {
   effects?: EffectInfo[]
   /** text styles of its own (TL7c, TL11a) */
   texts?: TextStyle[]
+  /** tools of its own: presets put on the picked clips */
+  tools?: Preset[]
+  /** marks edges snap to: grids in seconds */
+  snaps?: SnapGrid[]
 }
 
 /** raea's own kinds of track, in the order they stack (TL1a). */
@@ -99,7 +140,7 @@ export function readAdds(raw: unknown): { adds: Adds; errors: string[] } {
   const errors: string[] = []
   const adds: Adds = {}
   if (raw === undefined) return { adds, errors }
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { adds, errors: ["timeline is an object: { eases, curves, transitions, tracks, effects }"] }
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { adds, errors: ["timeline is an object: { eases, curves, transitions, tracks, effects, texts, tools, snaps }"] }
   const r = raw as Record<string, unknown>
   const named = (v: unknown, what: string): [string, unknown][] => (v === undefined ? [] : v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v) : (errors.push(`timeline.${what} is an object of named ${what}`), []))
   for (const [name, e] of named(r.eases, "eases")) {
@@ -144,6 +185,24 @@ export function readAdds(raw: unknown): { adds: Adds; errors: string[] } {
         else (adds.effects ??= []).push({ kind: e.kind, title: e.title, parts: e.parts! })
       }
   }
+  if (r.tools !== undefined) {
+    if (!Array.isArray(r.tools)) errors.push("timeline.tools is a list of { id, title, set }")
+    else
+      for (const [i, x] of r.tools.entries()) {
+        const why = presetError(x)
+        if (why) errors.push(`timeline.tools[${i}] ${why}`)
+        else (adds.tools ??= []).push(x as Preset)
+      }
+  }
+  if (r.snaps !== undefined) {
+    if (!Array.isArray(r.snaps)) errors.push("timeline.snaps is a list of { id, title, every }")
+    else
+      for (const [i, x] of r.snaps.entries()) {
+        const g = x as Partial<SnapGrid> | null
+        if (!titled(g) || !(typeof g!.every === "number" && g!.every >= 0.01 && g!.every <= 600)) errors.push(`timeline.snaps[${i}] is { id, title, every }: every the seconds between marks, from 0.01 to 600`)
+        else (adds.snaps ??= []).push({ id: g!.id!, title: g!.title!, every: g!.every! })
+      }
+  }
   if (r.texts !== undefined) {
     if (!Array.isArray(r.texts)) errors.push("timeline.texts is a list of { kind, title, place, style }")
     else
@@ -158,21 +217,24 @@ export function readAdds(raw: unknown): { adds: Adds; errors: string[] } {
 }
 
 /** Everything offered: raea's own, then each plugin's in order (a name a plugin before it took stays that one's). */
-export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[]; /** the effects a clip of its own puts on the picture (TL7b) */ effects: EffectInfo[]; /** the ways words are put on the picture (TL7c) */ texts: TextStyle[] } {
+export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[]; /** the effects a clip of its own puts on the picture (TL7b) */ effects: EffectInfo[]; /** the ways words are put on the picture (TL7c) */ texts: TextStyle[]; /** a plugin's tools: presets for the picked clips */ tools: Preset[]; /** a plugin's snap grids */ snaps: SnapGrid[] } {
   const eases = { ...EASES }, curves = { ...CURVES }, transitions = [...TRANSITIONS], tracks = [...TRACKS]
   const effects: EffectInfo[] = EFFECTS.map(({ kind, title }) => ({ kind, title }))
   const texts = [...TEXTS]
+  const tools: Preset[] = [], snaps: SnapGrid[] = []
   for (const p of plugins) {
     for (const [n, e] of Object.entries(p.eases ?? {})) if (!(n in eases)) eases[n] = e
     for (const [n, c] of Object.entries(p.curves ?? {})) if (!(n in curves)) curves[n] = c
     for (const t of p.transitions ?? []) if (!transitions.some((o) => o.kind === t.kind)) transitions.push(t)
     for (const e of p.effects ?? []) if (!effects.some((o) => o.kind === e.kind)) effects.push(e)
     for (const x of p.texts ?? []) if (!texts.some((o) => o.kind === x.kind)) texts.push(x)
+    for (const x of p.tools ?? []) if (!tools.some((o) => o.id === x.id)) tools.push(x)
+    for (const x of p.snaps ?? []) if (!snaps.some((o) => o.id === x.id)) snaps.push(x)
     for (const t of p.tracks ?? [])
       if (!tracks.some((o) => o.kind === t.kind)) {
         tracks.push(t)
         if (t.under) under.add(t.kind)
       }
   }
-  return { eases, curves, transitions, tracks, effects, texts }
+  return { eases, curves, transitions, tracks, effects, texts, tools, snaps }
 }

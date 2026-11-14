@@ -94,7 +94,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                of CSS filter functions, drawn by <Effect parts> and by the preview alike), TL8a
                (waveform, level line, fades), TL8b's beats as ticks that edges snap to, each turned off by a
                click, TL8c (Record from the playhead, the picture playing; the recording a clip named by what was
-               said, its file in the project's attachments), TL11a for easings, speed curves, transitions and effects as data,
+               said, its file in the project's attachments), TL11a for easings, speed curves, transitions, effects, text styles, tools (presets put
+               on the picked clips) and snap grids as data,
                TL9d (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL12a-b,
                TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
@@ -112,7 +113,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                seconds at a time at draft quality and kept by range, each range under what it is drawn from (the
                code outside the scene's sequences and the sequences on in it), so an edit to one sequence draws
                again only the ranges it is on and an undo plays what it had; the store stays under a size
-               (RAEA_SCENE_FRAMES_LIMIT, 1 GiB), the least recently played going first; the scene's timeline
+               (RAEA_SCENE_FRAMES_LIMIT, 1 GiB), the least recently played going first, and beside the switch the
+               scene's kept frames say what they take and are cleared by a click; the scene's timeline
                shows what is kept, and Play runs it over the stage from the scene's own camera, handing back to
                the live stage where nothing is kept. Seen in a headless raea window on the real host: the sample
                room drawn, kept, and played at its own rate; a 9 s copy of it opened again with every range
@@ -121,8 +123,10 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
-    not built  TL11a's tools and snapping targets; TL13a's drag at the window's rate with 400 clips (measured
-               below: Chrome keeps it, raea's window draws 27 to 31 frames a second). The skills guide's note
+    not built  TL13a's drag at the window's rate with 400 clips (measured below: Chrome keeps it, raea's window
+               draws 35 to 37 frames a second, and what is left is the window's own frame after a change). A
+               plugin's tools, snap grids, effects and text styles are checked as data and offered in the bar, but
+               not yet seen with a plugin installed. The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 
   Background:
@@ -433,7 +437,14 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
       # 48) and what a drag step adds to it (about 18 ms, 8 with 48). Keeping the clips' drawings did not move the
       # window's numbers, so the step's cost there is not React's work on the clips: it is not yet told apart
       # between the operation itself (snapping and settling 400 clips) and the window laying the moved clips out.
-      # Not yet: that attribution and the fix, and the picture following an edit within 100 ms on the stage.
+      # Told apart since (the measurement times a step's operation and React's commit of it): a drag step asked
+      # the page what was under the pointer (document.elementFromPoint, for the track a clip is carried to), which
+      # in raea's window took 7.7 ms a step (0.2 ms in Chrome). The tracks' places are now read once when a clip
+      # is first carried: the operation is 0.1 ms a step, its commit 2.5 ms, and the window's drag 35 to 37 frames
+      # a second (a frame's median 24 to 26 ms), with nothing moving 80. What is left is the window's: a frame
+      # after any change to the page costs about twice a still one with 400 clips on screen (a clip placed by a
+      # transform instead of its left edge made no difference), so the rest is the engine's layout, not the app's.
+      # Not yet: that, and the picture following an edit within 100 ms on the stage.
 
   Rule: TL14. Watch, Listen and Scene are one timeline
     Scenario: TL14a. Watch

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { CURVES, EASES, palette, readAdds, seqEdits, fromSequences, TEXTS, TRANSITIONS } from "../src"
+import { CURVES, EASES, gridFrames, palette, readAdds, seqEdits, fromSequences, TEXTS, TRANSITIONS } from "../src"
 
 describe("TL11a: a plugin adds easings, speed curves and transitions", () => {
   const raw = {
@@ -33,7 +33,7 @@ describe("TL11a: a plugin adds easings, speed curves and transitions", () => {
   test("with no plugin it is raea's own, and a manifest with no timeline adds nothing", () => {
     expect(palette().transitions).toEqual(TRANSITIONS)
     expect(readAdds(undefined)).toEqual({ adds: {}, errors: [] })
-    expect(readAdds([1]).errors).toEqual(["timeline is an object: { eases, curves, transitions, tracks, effects }"])
+    expect(readAdds([1]).errors).toEqual(["timeline is an object: { eases, curves, transitions, tracks, effects, texts, tools, snaps }"])
   })
 })
 
@@ -69,5 +69,22 @@ describe("TL7c, TL11a: text styles", () => {
     // added to a composition, the words go with their style
     const t = fromSequences([{ i: 0, name: "Sequence", label: "A", from: 0, to: 90, lane: 0 }], 30)
     expect(seqEdits(t, { op: "add", kind: "text", clip: { id: "text-1", kind: "text", name: "Hi", props: { style: JSON.stringify(neon) }, start: 0, length: 60 } })).toEqual([{ op: "text", at: 0, frames: 60, text: "Hi", style: neon }])
+  })
+})
+
+describe("TL11a: a plugin's tools and snapping targets", () => {
+  test("a tool is a preset put on the picked clips; a snap grid is marks every so many seconds; both checked", () => {
+    const { adds, errors } = readAdds({
+      tools: [{ id: "punch-in", title: "Punch in", set: { props: { scale: 1.2 } } }, { id: "slow", title: "Half speed", set: { speed: 0.5 } }, { id: "bad", title: "Bad", set: { props: { colour: 1 } } }, { id: "loud", title: "Loud", set: { volume: 9 } }],
+      snaps: [{ id: "bars", title: "Bars at 120", every: 2 }, { id: "fine", title: "Too fine", every: 0.001 }],
+    })
+    expect(adds.tools?.map((t) => t.id)).toEqual(["punch-in", "slow"])
+    expect(adds.snaps).toEqual([{ id: "bars", title: "Bars at 120", every: 2 }])
+    expect(errors).toEqual([expect.stringContaining("timeline.tools[2] set.props.colour: a tool places a clip by"), "timeline.tools[3] set.volume runs from 0 to 2", "timeline.snaps[1] is { id, title, every }: every the seconds between marks, from 0.01 to 600"])
+    const all = palette([adds])
+    expect([all.tools.length, all.snaps.length]).toEqual([2, 1])
+    expect(gridFrames(all.snaps[0], 30, 300)).toEqual([60, 120, 180, 240, 300])
+    expect(gridFrames({ id: "x", title: "x", every: 0.01 }, 30, 300)).toEqual([])
+    expect(palette().tools).toEqual([])
   })
 })

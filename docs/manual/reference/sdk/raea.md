@@ -38,7 +38,7 @@ See [Your first video](../../start/first-video.md) for the whole loop, and
 import { AbsoluteFill, ACTION_KEY, actionsIn, Animate } from "raea"
 ```
 
-`raea` exports 19 components, 8 hooks, 55 functions, 9 values, 94 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
+`raea` exports 19 components, 8 hooks, 58 functions, 9 values, 95 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
 
 ## Components
 
@@ -698,6 +698,30 @@ Where the song is at `t` seconds: a pure function of the map.
 function songAt(map: SongMap, t: number): SongMoment
 ```
 
+### `speedLength`
+
+How many frames `span` source frames take under the curve (points from speedPoints).
+
+```ts
+function speedLength(ps: SpeedPoint[], span: number): number
+```
+
+### `speedPoints`
+
+The points checked and in order, one at each end.
+
+```ts
+function speedPoints(owner: string, curve: SpeedPoint[]): SpeedPoint[]
+```
+
+### `speedSource`
+
+The source frame, counted from the curve's start, showing `frame` frames in; `span` once the curve has run out.
+
+```ts
+function speedSource(ps: SpeedPoint[], span: number, frame: number): number
+```
+
 ### `spring`
 
 A damped spring's value at `frame`: from `from` (0) to `to` (1), started `delay` frames late, by its `config`
@@ -1223,6 +1247,7 @@ The props of [`Loop`](#loop), tabled there.
 | `fadeIn` | `number` | ours: seconds to ramp the sound in from silence at its start (applied by the renderer at the audio's rate) |
 | `fadeOut` | `number` | ours: seconds to ramp the sound out to silence by its end: the end of its Sequence or Loop pass, or endAt, whichever comes first (one removed some other way fades out after it's gone) |
 | `playbackRate` | `number` | how fast it plays (1): 2 is double speed |
+| `speedCurve` | `SpeedPoint[]` | ours: its speed as a curve over its source, [place, speed] points: the place from 0 (startFrom) to 1 (endAt, which it needs), the speed from 0.1 to 10 and changing in a straight line between two points. Wins over playbackRate; its Sequence is as long as the curve takes (`speedLength`) |
 | `muted` | `boolean` | play no sound |
 | `loop` | `boolean` | start again from `startFrom` when it reaches `endAt` |
 | `bus` | `string` | the bus it plays into: a named channel of the edit's Tone graph (music, sfx, voice, ambience, ui), so it takes that bus's volume, effects and ducking (raea/tone `buses`) |
@@ -1579,6 +1604,12 @@ The props of [`SongPlot`](#songplot), tabled there.
 | `bar` (required) | `number` | the index of its first bar |
 | `energy` (required) | `number` | its mean energy, 0..1 |
 | `cuts` (required) | `number` | suggested cuts per bar: 0.25, 0.5, 1, 2 or 4 |
+
+### `SpeedPoint`
+
+```ts
+type SpeedPoint = [place: number, speed: number]
+```
 
 ### `SpringConfig`
 

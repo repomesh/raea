@@ -19,6 +19,9 @@ export interface SeqRow {
   keys?: Record<string, [number, number, Ease?][]>
   /** how fast the footage it holds plays (its media's playbackRate), when it holds footage at one rate (TL6a) */
   speed?: number
+  /** its footage's speed as a curve, each [place 0 to 1, speed] (its media's speedCurve), over `shows` source frames (TL6b) */
+  curve?: [number, number][]
+  shows?: number
   /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
   in?: { kind: string; frames: number }
   out?: { kind: string; frames: number }
@@ -37,6 +40,9 @@ export type SeqEdit =
   | { op: "keys"; i: number; keys: Record<string, [number, number, Ease?][]> }
   /** the footage it holds played at `speed`, its length following (TL6a) */
   | { op: "speed"; i: number; speed: number }
+  /** the footage it holds played by a speed curve over `source` frames of it, the sequence `frames` long (what the
+   *  curve takes); null takes the curve off (TL6b) */
+  | { op: "curve"; i: number; curve: [number, number][] | null; source: number; frames: number }
   /** how it comes in ("in") or goes out ("out"): its <Transition>'s edge set, or taken off with 0 frames (TL7a) */
   | { op: "edge"; i: number; side: "in" | "out"; kind: string; frames: number }
   /** a <Video>'s or an <Audio>'s own level (TL8a) */
@@ -57,7 +63,7 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const media = rows.filter((r) => r.media)
   rows = rows.filter((r) => !r.media)
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -166,9 +172,18 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       ]
     }
     case "set": {
-      // a speed alone is the footage's rate; anything else a sequence has is its own code's
+      // a speed or a speed curve is the footage's rate; anything else a sequence has is its own code's
       const only = Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined)
-      if (only.length !== 1 || only[0] !== "speed" || !(op.set.speed! > 0)) return { why: `the composition's sequences take a speed, not ${only.join(", ") || "that"}, yet` }
+      if (only.length === 1 && only[0] === "curve") {
+        // the clip as the curve leaves it: the source it shows and how long that now takes
+        const after = apply(t, op)
+        if (!after.ok) return { why: after.why }
+        const c = find(after.timeline, op.id)?.clip
+        if (!c) return { why: "that isn't one of the composition's sequences" }
+        const two = (v: number) => Math.round(v * 1000) / 1000
+        return each([op.id], (r) => ({ op: "curve", i: r.i, curve: c.curve ? c.curve.map((p): [number, number] => [two(p.at), two(p.speed)]) : null, source: Math.round(c.shows ?? c.length), frames: c.length }))
+      }
+      if (only.length !== 1 || only[0] !== "speed" || !(op.set.speed! > 0)) return { why: `the composition's sequences take a speed or a speed curve, not ${only.join(", ") || "that"}, yet` }
       return each([op.id], (r) => ({ op: "speed", i: r.i, speed: Math.round(op.set.speed! * 1000) / 1000 }))
     }
     case "key":

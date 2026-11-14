@@ -204,6 +204,11 @@ impl AudioNodeProcessor for VoicesProc {
                         v.ramp = (ramp, ramp);
                     }
                 }
+                Ev::Rate { id, rate } => {
+                    if let Some(Src::Pcm { pcm, step, .. }) = self.voices.iter_mut().find(|v| v.id == id && v.env.stopping.is_none()).map(|v| &mut v.src) {
+                        *step = pcm.rate / self.rate * rate;
+                    }
+                }
                 Ev::Stop { id, fade } => {
                     if let Some(v) = self.voices.iter_mut().find(|v| v.id == id && v.env.stopping.is_none()).map(|v| &mut v.env) {
                         v.stopping = Some((fade.max(1), fade.max(1)));

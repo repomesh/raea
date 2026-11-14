@@ -5,6 +5,7 @@ import { createContext, useContext, type CSSProperties, type ImgHTMLAttributes }
 import { isGeneratedAsset, type GeneratedAsset } from "@raea/asset/assets";
 import { useClockState, useLocalTime } from "@raea/app/clock";
 import { jsx } from "react/jsx-runtime";
+import { SPEEDS, speedLength, speedPoints, speedSource, type SpeedPoint } from "./speed";
 
 export type VolumeProp = number | ((mediaFrame: number) => number);
 
@@ -32,6 +33,10 @@ export interface MediaProps {
   fadeOut?: number;
   /** how fast it plays (1): 2 is double speed */
   playbackRate?: number;
+  /** ours: its speed as a curve over its source, [place, speed] points: the place from 0 (startFrom) to 1 (endAt, which
+   *  it needs), the speed from 0.1 to 10 and changing in a straight line between two points. Wins over playbackRate;
+   *  its Sequence is as long as the curve takes (`speedLength`) */
+  speedCurve?: SpeedPoint[];
   /** play no sound */
   muted?: boolean;
   /** start again from `startFrom` when it reaches `endAt` */
@@ -64,6 +69,10 @@ interface MediaTiming {
   sourceFrame: number;
   ended: boolean;
   volume: number;
+  /** how fast the source is passing at this frame: playbackRate, or the curve's speed here */
+  rate: number;
+  /** how many frames it plays from its start to endAt (Infinity with no endAt) */
+  length: number;
 }
 
 function pick(owner: string, a: number | undefined, aName: string, b: number | undefined, bName: string) {
@@ -89,7 +98,24 @@ function timing(owner: string, props: MediaProps, frame: number, src: string): M
 
   let sourceFrame = startFrom + Math.max(0, frame) * rate;
   let ended = false;
-  if (endAt !== undefined && sourceFrame >= endAt) {
+  let now = rate;
+  let length = endAt === undefined ? Infinity : (endAt - startFrom) / rate;
+  if (props.speedCurve !== undefined) {
+    if (endAt === undefined) throw new Error(`${owner} ${src}: speedCurve runs from startFrom to endAt, so it needs endAt`);
+    const ps = speedPoints(`${owner} ${src}`, props.speedCurve);
+    const span = endAt - startFrom;
+    length = speedLength(ps, span);
+    let f = Math.max(0, frame);
+    if (f >= length) {
+      if (props.loop) f %= length;
+      else ended = true;
+    }
+    // endAt is exclusive: hold the last frame before it
+    const at = ended ? Math.max(0, span - 1) : speedSource(ps, span, f);
+    sourceFrame = startFrom + at;
+    // the source this frame passes: what the sound plays at, so the next frame's source is where it has got to
+    now = ended ? rate : Math.max(SPEEDS[0], speedSource(ps, span, f + 1) - at);
+  } else if (endAt !== undefined && sourceFrame >= endAt) {
     if (props.loop) {
       const span = endAt - startFrom;
       sourceFrame = startFrom + ((sourceFrame - startFrom) % span);
@@ -118,9 +144,11 @@ function timing(owner: string, props: MediaProps, frame: number, src: string): M
   TIMING.sourceFrame = sourceFrame;
   TIMING.ended = ended;
   TIMING.volume = volume;
+  TIMING.rate = now;
+  TIMING.length = length;
   return TIMING;
 }
-const TIMING: MediaTiming = { sourceFrame: 0, ended: false, volume: 1 };
+const TIMING: MediaTiming = { sourceFrame: 0, ended: false, volume: 1, rate: 1, length: Infinity };
 
 /** A fade length in seconds, checked; the renderer applies it at the audio's own rate, so it can be under a frame. */
 function fadeSeconds(owner: string, props: MediaProps, name: "fadeIn" | "fadeOut", src: string): number {
@@ -150,9 +178,11 @@ function useMediaAttrs(owner: string, props: MediaProps, src = props.src as stri
   const { frame, origin } = useLocalTime(owner);
   if (typeof src !== "string" || src === "") throw new Error(`${owner}: src is required`);
   const t = timing(owner, props, frame, src);
+  // (read now: `t` is one object every media element shares)
+  const rate = t.rate;
   // where it stops: its Sequence's (or Loop pass's) end, or endAt reached (a loop never reaches it)
   const endAt = props.loop ? undefined : (props.endAt ?? props.trimAfter);
-  const own = endAt === undefined ? Infinity : origin + Math.ceil((endAt - (props.startFrom ?? props.trimBefore ?? 0)) / (props.playbackRate ?? 1));
+  const own = endAt === undefined ? Infinity : origin + Math.ceil(t.length);
   const fadeOut = fadeSeconds(owner, props, "fadeOut", src);
   const end = Math.min(useContext(MediaEndContext), own);
   const volume = fadedOut(t.volume, fadeOut, fps, origin + frame, end);
@@ -164,7 +194,7 @@ function useMediaAttrs(owner: string, props: MediaProps, src = props.src as stri
     "data-fade-in": fadeSeconds(owner, props, "fadeIn", src),
     // faded here into its end: the stop at the end is the mixer's edge. With no end, the mixer fades it once it's gone
     "data-fade-out": end === Infinity ? fadeOut : 0,
-    "data-playback-rate": props.playbackRate ?? 1,
+    "data-playback-rate": rate,
     "data-start-from": props.startFrom ?? props.trimBefore ?? 0,
     "data-end-at": props.endAt ?? props.trimAfter,
     "data-loop": props.loop ? "true" : undefined,

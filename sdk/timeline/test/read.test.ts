@@ -38,7 +38,15 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "remove", ids: ["seq-0", "seq-3"] })).toEqual([{ op: "delete", i: 3 }, { op: "delete", i: 0 }])
     // a speed is the footage's rate; another field of a clip isn't a sequence's to take
     expect(seqEdits(t, { op: "set", id: "seq-0", set: { speed: 2 } })).toEqual([{ op: "speed", i: 0, speed: 2 }])
-    expect(seqEdits(t, { op: "set", id: "seq-0", set: { volume: 0.5 } })).toEqual({ why: "the composition's sequences take a speed, not volume, yet" })
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { volume: 0.5 } })).toEqual({ why: "the composition's sequences take a speed or a speed curve, not volume, yet" })
+    // a speed curve: the points, the source the sequence shows, and how long the curve takes over it
+    const len = t.tracks[0].clips[0].length
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { curve: [{ at: 0, speed: 2 }, { at: 1, speed: 2 }] } })).toEqual([{ op: "curve", i: 0, curve: [[0, 2], [1, 2]], source: len, frames: Math.round(len / 2) }])
+    const curved = fromSequences([{ ...rows[0], curve: [[0, 1], [1, 3]], shows: 120 }], 30).tracks[0].clips[0]
+    expect([curved.curve, curved.shows]).toEqual([[{ at: 0, speed: 1 }, { at: 1, speed: 3 }], 120])
+    // taken off again: the source it showed at 1x
+    const off = fromSequences([{ ...rows[0], from: 0, to: 60, curve: [[0, 2], [1, 2]], shows: 120 }], 30)
+    expect(seqEdits(off, { op: "set", id: "seq-0", set: { curve: null } })).toEqual([{ op: "curve", i: 0, curve: null, source: 120, frames: 120 }])
     expect(seqEdits(t, { op: "duplicate", ids: ["seq-0"] })).toEqual({ why: 'the composition\'s sequences don\'t take "duplicate" yet' })
     expect(fromSequences([{ ...rows[0], speed: 2 }], 30).tracks[0].clips[0].speed).toBe(2)
   })

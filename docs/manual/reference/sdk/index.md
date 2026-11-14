@@ -31,7 +31,7 @@ The composition, the app, and the specs and notes an agent writes.
 
 | Import | What it's for | Exports |
 | --- | --- | --- |
-| [`raea`](raea.md) | The main entry: compositions, sequences, time, interpolation, springs, footage, sound and words. | 19 components, 8 hooks, 55 functions, 9 values, 94 types |
+| [`raea`](raea.md) | The main entry: compositions, sequences, time, interpolation, springs, footage, sound and words. | 19 components, 8 hooks, 58 functions, 9 values, 95 types |
 | [`raea/app`](app.md) | The App, its plugins and schedules, and the registry a video's compositions are kept in. | 1 component, 4 functions, 3 classes, 17 values, 8 types |
 | [`raea/brief`](brief.md) | The specs an agent writes as data: brief, script, taste, plan and controller, checked against raea's schemas. | 6 functions, 32 types |
 | [`raea/note`](note.md) | A person's note as a file in the project: their words kept as written, and the asks the agent restates it as. | 1 function, 4 types |

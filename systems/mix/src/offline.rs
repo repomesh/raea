@@ -355,6 +355,40 @@ mod tests {
         assert_eq!(worst, 0.0, "the Tone play differs from its bounce by up to {worst}");
     }
 
+    /// A sound under a speed curve (sdk/video speedCurve): each frame says where its source is and the rate it passes
+    /// at, the next frame's place being where that rate took it. It plays on as one voice, its pitch rising with the
+    /// rate, with no dip where a frame's rate changes.
+    #[test]
+    fn a_sound_whose_rate_changes_each_frame_plays_on_without_a_break() {
+        let dir = std::env::temp_dir().join(format!("raea-mixer-test-rate-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let a = tone(&dir, "a.wav", 440.0, 8.0);
+        let fps = 30.0;
+        let mut at = 0.0;
+        let fr: Vec<Cue> = (0..90)
+            .map(|f| {
+                // 1x rising to 2x over three seconds
+                let rate = 1.0 + f as f64 / 90.0;
+                let mut c = Cue::default();
+                c.sounds.push(Sound { key: "curve".into(), file: a.as_path().into(), at, volume: 1.0, rate, fade_in: 0.0, fade_out: 0.0, bus: None });
+                at += rate / fps;
+                c
+            })
+            .collect();
+        let out = bounce_raw(&fr, fps).unwrap();
+        let ch = &out.channels[0];
+        let crossings = |from: usize, to: usize| ch[from..to].windows(2).filter(|w| w[0] <= 0.0 && w[1] > 0.0).count() as f64;
+        let half = RATE as usize / 2;
+        // the first half second is about 1.08x of 440 Hz, the last (frames 75 to 90) about 1.92x
+        let (first, last) = (crossings(0, half), crossings(5 * half, 6 * half));
+        assert!((first / 220.0 - 1.083).abs() < 0.03, "first half second: {first} cycles");
+        assert!((last / 220.0 - 1.917).abs() < 0.03, "last half second: {last} cycles");
+        // no dip: every 5 ms of it (after the fade in, before the end) reaches the tone's level
+        let win = RATE as usize / 200;
+        let low = (2..ch.len() / win - 4).map(|k| ch[k * win..(k + 1) * win].iter().fold(0f32, |m, v| m.max(v.abs()))).fold(f32::MAX, f32::min);
+        assert!(low > 0.45, "it dips to {low}");
+    }
+
     #[test]
     fn a_raw_bounce_mastered_is_the_mastered_bounce() {
         let dir = std::env::temp_dir().join(format!("raea-mixer-test-raw-{}", std::process::id()));

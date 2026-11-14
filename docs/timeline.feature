@@ -74,14 +74,17 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   Status, 11-13 (the first day). On raea main: sdk/timeline (model, ops with inverses, compound clips, keys and
   bezier easing, speed curves, snapping, the frame store's decisions, live playback's mapping, readers for a
   composition's sequences and its footage and sound, a film's scenes and a sound's tracks, the palette a plugin adds
-  to; 57 tests), and in sdk/video <Nudge keys> and <Transition in out> (fade, slide, wipe, zoom). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 12 browser
-  tests in Chrome, 5 of them also passing in a headless raea window (the rest stop at helpers its runner lacks):
-    built      TL0a-c, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
-               TL2a-e, TL3a-e, TL3g, TL3i, TL4a-c, TL5a-c, TL6a-b's presets, TL7a, TL8a's waveform and level,
+  to; 63 tests), and in sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom) and a <Video>'s or an
+  <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 15 browser
+  tests in Chrome, 10 of them also passing in a headless raea window (the rest stop at helpers its runner lacks):
+    built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
+               TL2a-e, TL3a-e, TL3g, TL3h's freeze and reverse (played live from the film's own frames), TL3i,
+               TL4a-c, TL5a-c, TL6a-b, TL7a, TL8a (waveform, level line, fades),
                TL11a for easings, speed curves and transitions as a plugin's data, TL12a-b, TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
-               (TL5d), a speed for a sequence that holds footage (TL6a), a transition on a cut (TL7a), a <Video>'s
+               (TL5d), a speed or a speed curve for a sequence that holds footage (TL6a-b), a transition on a cut
+               (TL7a), a <Video>'s
                or an <Audio>'s level (TL8a); each written into the working version the moment it is made, its draft
                played over the picture (TL9a, TL10d), finished and posted on Send with the agent told (TL9b). A
                scene's sequences: move, trim, split, delete written into the scene's own file, which the stage
@@ -90,8 +93,7 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first): a store of
                drawn frames by range, under a size limit, isn't built; a composition's drafts are kept by their
                source (the newest 24), so an undo plays its draft again at once
-    not built  TL0d (a feed item or a controller declaring a timeline of its own data), TL1d, TL3f, TL3h, a speed
-               curve on a sequence, TL7b-c, TL8a's fades and volume line, TL8b-c, TL9d, TL10f for 3D beyond the
+    not built  TL1d, TL3f, TL3h's mirror, rotate and crop, TL7b-c, TL8b-c, TL9d, TL10f for 3D beyond the
                stage's own play, TL11a's track and clip kinds, tools and snapping targets, TL13's measurements
 
   Background:

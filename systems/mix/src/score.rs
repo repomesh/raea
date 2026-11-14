@@ -21,6 +21,8 @@ pub enum Ev {
     Start { id: u64, pcm: Arc<Pcm>, at: f64, rate: f64, gain: f32, fade_in: u32, port: usize },
     /// its gain ramps linearly to `gain` over `ramp` samples
     Gain { id: u64, gain: f32, ramp: u32 },
+    /// it reads on from where it is, `rate` times as fast (a speed curve's next frame: no new voice, no fade)
+    Rate { id: u64, rate: f64 },
     /// it fades out over `fade` samples and goes
     Stop { id: u64, fade: u32 },
     /// a Tone instrument's note on (attack, or attack-release over `dur` samples), out of its port
@@ -120,7 +122,12 @@ impl Score {
             let (s, pcm): (&Sound, _) = sound(sp.2);
             if let Some(r) = self.runs.get_mut(k) {
                 let moved = r.at + r.rate * (f - r.f) as f64 / self.fps;
-                if f > r.f && (s.at - moved).abs() < 1e-6 && (s.rate - r.rate).abs() < 1e-9 {
+                // where the last frame's rate took it: the same sound going on, at a new rate under a speed curve
+                if f > r.f && (s.at - moved).abs() < 1e-6 {
+                    if (s.rate - r.rate).abs() >= 1e-9 {
+                        out.push((t, Ev::Rate { id: r.id, rate: s.rate }));
+                        r.rate = s.rate;
+                    }
                     if (s.volume - r.volume).abs() > 1e-9 {
                         out.push((t, Ev::Gain { id: r.id, gain: s.volume, ramp }));
                     }

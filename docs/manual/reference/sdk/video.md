@@ -120,6 +120,7 @@ The props of [`Loop`](#loop), tabled there.
 | `fadeIn` | `number` | ours: seconds to ramp the sound in from silence at its start (applied by the renderer at the audio's rate) |
 | `fadeOut` | `number` | ours: seconds to ramp the sound out to silence by its end: the end of its Sequence or Loop pass, or endAt, whichever comes first (one removed some other way fades out after it's gone) |
 | `playbackRate` | `number` | how fast it plays (1): 2 is double speed |
+| `speedCurve` | `SpeedPoint[]` | ours: its speed as a curve over its source, [place, speed] points: the place from 0 (startFrom) to 1 (endAt, which it needs), the speed from 0.1 to 10 and changing in a straight line between two points. Wins over playbackRate; its Sequence is as long as the curve takes (`speedLength`) |
 | `muted` | `boolean` | play no sound |
 | `loop` | `boolean` | start again from `startFrom` when it reaches `endAt` |
 | `bus` | `string` | the bus it plays into: a named channel of the edit's Tone graph (music, sfx, voice, ambience, ui), so it takes that bus's volume, effects and ducking (raea/tone `buses`) |

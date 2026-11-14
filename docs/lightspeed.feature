@@ -110,15 +110,24 @@ Feature: Lightspeed: raea as fast as anything could be, with the best quality, m
       And the app's player (raea-feed #13, not merged): the detail view's clock is outside React state, so a playing
         video's ticks render only what shows the time: the seconds of 60 fps play with a wait of 26 ms or more
         between frames go from nearly all to about half
-      And open: frames still go through the CPU; the scene inspector's frame rate while orbiting is not measured
+      And a scene looked around (11-13, the feed's sample room live in a headless window, its counter read over
+        5 s): 57 frames a second standing still, 58 while an orbit is dragged without pause (the headless window
+        draws 60 at most)
+      And open: frames still go through the CPU; a heavy or ray-traced scene's rate while orbiting is not measured
 
     Scenario: PF8. Pages and assets from this Mac open at once
       Then covered so far by PF1 (a feed) and PF2 (stills)
-      And a project's Source view (50 compositions, 71 components): its list is there 0.18 s after the click when
-        its thumbnails are in the proxy store, and 2.4 to 3.8 s when the store is empty and the feed's own are still
-        being made. Not explained: the host answers in 0.25 to 0.33 s, the window draws 47 to 91 frames a second
-        throughout, holding still-drawing at the click changes nothing, and so does asking for no row thumbnails
-      And open: that first visit; an asset's preview, a model's, and the library on a real library
+      And a project's Source view (Stay: 159 rows), first visit with an empty proxy store, by wall-clock marks in
+        the page: its rows committed 0.59 s after the click; 0.29 s with its views loaded ahead (raea-feed #17: a
+        lazily loaded view waited out React's 300 ms hold on every first open). The 2.4 to 3.8 s written here before
+        was the measuring script: the window's `ui` tool hands out its last 240 frames in order, and a slow poller
+        reads frames seconds old
+      And the host found a project's folder by starting git and `raea workspace --json` (0.1 s) on nearly every
+        request (raea-feed #16 keeps both answers while their files stand): with 54 projects, 52 briefs read at page
+        open went from 4,831 ms for the slowest to 68, a library's files from 1,710 ms to 3
+      And a library's tiles have pictures before its files are indexed, and draw in raea's window (raea-feed #15):
+        60 pictures (463 MB) 3.6 s to make the first time, 0.02 s after
+      And open: an asset's preview and a model's; cold start after a reboot
 
   Rule: Lightspeed's goals (set 2026-10-19, after the four multi-day levers; the user: "just focus on lightspeed work")
     Scenario: Who owns what now

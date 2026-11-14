@@ -22,6 +22,11 @@ export interface SeqRow {
   /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
   in?: { kind: string; frames: number }
   out?: { kind: string; frames: number }
+  /** a <Video> or an <Audio> of its own (TL0c): it plays where the sequence it is in does, from `startFrom` of its
+   *  file, at its own level */
+  media?: "video" | "audio"
+  startFrom?: number
+  volume?: number
 }
 /** The host's edit to a sequence: its new span, a split, a delete. */
 export type SeqEdit =
@@ -34,6 +39,8 @@ export type SeqEdit =
   | { op: "speed"; i: number; speed: number }
   /** how it comes in ("in") or goes out ("out"): its <Transition>'s edge set, or taken off with 0 frames (TL7a) */
   | { op: "edge"; i: number; side: "in" | "out"; kind: string; frames: number }
+  /** a <Video>'s or an <Audio>'s own level (TL8a) */
+  | { op: "level"; i: number; volume: number }
 
 /** The transitions a composition's <Transition> draws (sdk/video transition.tsx). */
 export const CODE_KINDS = ["fade", "slide", "wipe", "zoom"]
@@ -47,6 +54,8 @@ const seqOf = (id: string): number | undefined => (/^seq-\d+$/.test(id) ? Number
  *  lane is the main track, its magnet on, only when its clips already run from frame 0 with no gap: a composition's
  *  sequences are where its code puts them, and nothing here moves one that wasn't dragged. */
 export function fromSequences(rows: SeqRow[], fps: number): Timeline {
+  const media = rows.filter((r) => r.media)
+  rows = rows.filter((r) => !r.media)
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
   const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
@@ -62,8 +71,19 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
       return out && into && out.kind === into.kind ? [{ id: `x-${c.id}`, kind: out.kind, after: c.id, length: out.frames + into.frames }] : []
     }),
   )
+  // footage and sound of their own: a track each kind, more where they play at once; a sound's below the picture
+  const mediaTracks = (kind: "video" | "audio"): Track[] => {
+    const out: Track[] = []
+    for (const r of media.filter((m) => m.media === kind).sort((a, b) => a.from - b.from)) {
+      const c: Clip = { id: seqId(r.i), kind, name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), in: r.startFrom ?? 0, ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.volume !== undefined && { volume: r.volume }), ...(r.locked && { locked: r.locked }) }
+      const home = out.find((k) => k.clips.every((o) => end(o) <= c.start || o.start >= end(c)))
+      if (home) home.clips.push(c)
+      else out.push({ id: `${kind === "audio" ? "sound" : "footage"}-${out.length + 1}`, kind: kind === "audio" ? "sound" : "overlay", name: kind === "audio" ? "Sound" : "Footage", clips: [c] })
+    }
+    return out
+  }
   // lanes below the first are nested deeper: drawn under it, as the strip has them
-  return { ...empty(fps), tracks, transitions, magnet: gapless }
+  return { ...empty(fps), tracks: [...tracks, ...mediaTracks("video"), ...mediaTracks("audio")], transitions, magnet: gapless }
 }
 
 /** A film with no composition behind it: its scenes as clips of one main track (cut where the picture cuts). Each
@@ -88,6 +108,13 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
   const row = (id: string) => {
     const i = seqOf(id), at = find(t, id)
     return i !== undefined && at ? { i, clip: at.clip } : undefined
+  }
+  // a <Video> or an <Audio> plays where its sequence does: its level is its own, everything else its sequence's
+  const isMedia = (id: string) => ["video", "audio"].includes(find(t, id)?.clip.kind ?? "") && /^(footage|sound)-/.test(find(t, id)?.track.id ?? "")
+  const ids = "ids" in op && op.ids ? op.ids : "id" in op && typeof op.id === "string" ? [op.id] : []
+  if (ids.some(isMedia)) {
+    if (op.op === "set" && Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined).join() === "volume") return ids.flatMap((id) => { const i = seqOf(id); return i === undefined ? [] : [{ op: "level", i, volume: Math.round(Math.max(0, op.set.volume!) * 1000) / 1000 } as SeqEdit] })
+    return { why: "footage and sound play where their sequence does: move, trim or speed the sequence; here only the level is its own" }
   }
   const each = (ids: string[], f: (r: { i: number; clip: Clip }) => SeqEdit): SeqEdit[] | { why: string } => {
     const rows = ids.map(row)

@@ -43,6 +43,22 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(fromSequences([{ ...rows[0], speed: 2 }], 30).tracks[0].clips[0].speed).toBe(2)
   })
 
+  test("a <Video> and an <Audio> are clips of their own under their sequence: their level is theirs, the rest the sequence's", () => {
+    const t = fromSequences([...rows, { i: 4, name: "Video", label: "take.mp4", from: 90, to: 180, lane: 0, media: "video", startFrom: 30 }, { i: 6, name: "Audio", label: "bed.wav", from: 0, to: 180, lane: 0, media: "audio", volume: 0.5 }], 30)
+    expect(t.tracks.map((k) => [k.id, k.kind, k.clips.map((c) => c.name)])).toEqual([
+      ["main", "main", ["First scene", "Second scene"]],
+      ["overlay-1", "overlay", ["Title", "Outro"]],
+      ["footage-1", "overlay", ["take.mp4"]],
+      ["sound-1", "sound", ["bed.wav"]],
+    ])
+    expect(t.tracks[2].clips[0]).toMatchObject({ kind: "video", in: 30, start: 90, length: 90 })
+    expect(t.tracks[3].clips[0]).toMatchObject({ kind: "audio", volume: 0.5 })
+    expect(seqEdits(t, { op: "set", id: "seq-6", set: { volume: 0.8 } })).toEqual([{ op: "level", i: 6, volume: 0.8 }])
+    expect(seqEdits(t, { op: "move", ids: ["seq-6"], by: 10 })).toEqual({ why: "footage and sound play where their sequence does: move, trim or speed the sequence; here only the level is its own" })
+    // the sequences themselves are as before
+    expect(seqEdits(t, { op: "move", ids: ["seq-1"], by: 10 })).toEqual([{ op: "move", i: 1, from: 25, to: 70 }])
+  })
+
   test("a transition on a cut is the part before going out and the part after coming in, and is read back from them", () => {
     const t = fromSequences(rows, 30)
     expect(seqEdits(t, { op: "transition", transition: { id: "x-seq-0", kind: "slide", after: "seq-0", length: 15 } })).toEqual([

@@ -51,6 +51,17 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(fromSequences([{ ...rows[0], speed: 2 }], 30).tracks[0].clips[0].speed).toBe(2)
   })
 
+  test("a sequence of words is a text clip: renamed, its words change; words added are a new sequence (TL7c)", () => {
+    const t = fromSequences([{ ...rows[0] }, { ...rows[2], text: "Hello there" }], 30)
+    const words = t.tracks.flatMap((k) => k.clips).find((c) => c.id === "seq-1")!
+    expect([words.kind, words.name]).toEqual(["text", "Hello there"])
+    expect(seqEdits(t, { op: "set", id: "seq-1", set: { name: " Goodbye " } })).toEqual([{ op: "words", i: 1, text: "Goodbye" }])
+    expect(seqEdits(t, { op: "set", id: "seq-1", set: { name: " " } })).toEqual({ why: "a text clip says something: delete it to take its words off" })
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { name: "x" } })).toEqual({ why: "a sequence's name is its own code's: only a text clip's words change here" })
+    expect(seqEdits(t, { op: "add", kind: "text", clip: { id: "new", kind: "text", name: "Sale ends Friday", start: 45, length: 90 } })).toEqual([{ op: "text", at: 45, frames: 90, text: "Sale ends Friday" }])
+    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words are added to a composition here: footage and sound are its code's to place" })
+  })
+
   test("a <Video> and an <Audio> are clips of their own under their sequence: their level is theirs, the rest the sequence's", () => {
     const t = fromSequences([...rows, { i: 4, name: "Video", label: "take.mp4", from: 90, to: 180, lane: 0, media: "video", startFrom: 30 }, { i: 6, name: "Audio", label: "bed.wav", from: 0, to: 180, lane: 0, media: "audio", volume: 0.5 }], 30)
     expect(t.tracks.map((k) => [k.id, k.kind, k.clips.map((c) => c.name)])).toEqual([

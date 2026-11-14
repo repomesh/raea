@@ -22,6 +22,8 @@ export interface SeqRow {
   /** its footage's speed as a curve, each [place 0 to 1, speed] (its media's speedCurve), over `shows` source frames (TL6b) */
   curve?: [number, number][]
   shows?: number
+  /** the words it shows, when words are all it shows: a text clip, its words changed by renaming it (TL7c) */
+  text?: string
   /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
   in?: { kind: string; frames: number }
   out?: { kind: string; frames: number }
@@ -43,6 +45,10 @@ export type SeqEdit =
   /** the footage it holds played by a speed curve over `source` frames of it, the sequence `frames` long (what the
    *  curve takes); null takes the curve off (TL6b) */
   | { op: "curve"; i: number; curve: [number, number][] | null; source: number; frames: number }
+  /** a text sequence's words (TL7c) */
+  | { op: "words"; i: number; text: string }
+  /** words put on the picture from `at` for `frames`: a new sequence after the composition's last (TL7c) */
+  | { op: "text"; at: number; frames: number; text: string }
   /** how it comes in ("in") or goes out ("out"): its <Transition>'s edge set, or taken off with 0 frames (TL7a) */
   | { op: "edge"; i: number; side: "in" | "out"; kind: string; frames: number }
   /** a <Video>'s or an <Audio>'s own level (TL8a) */
@@ -54,6 +60,8 @@ export const CODE_KINDS = ["fade", "slide", "wipe", "zoom"]
 export const KEYED = ["x", "y", "scale", "rotate", "opacity"]
 
 const seqId = (i: number) => `seq-${i}`
+// the edits to later elements first (an edit that adds or removes an element moves the places after it)
+const later = (a: SeqEdit, b: SeqEdit) => ("i" in b ? b.i : 0) - ("i" in a ? a.i : 0)
 const seqOf = (id: string): number | undefined => (/^seq-\d+$/.test(id) ? Number(id.slice(4)) : undefined)
 
 /** The composition's sequences as a timeline: a track a lane, the first lane on top as the strip draws it. The first
@@ -63,7 +71,7 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const media = rows.filter((r) => r.media)
   rows = rows.filter((r) => !r.media)
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: "sequence", name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.text === undefined ? "sequence" : "text", name: r.text ?? r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -149,11 +157,11 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       const ids = op.ids ?? t.tracks.flatMap((k) => k.clips.filter((c) => c.start < at && at < end(c) && !c.locked).map((c) => c.id))
       // a split makes a sequence after the one it cuts, so later ones are named first
       const r = each(ids, (x) => ({ op: "split", i: x.i, at }))
-      return Array.isArray(r) ? r.sort((a, b) => b.i - a.i) : r
+      return Array.isArray(r) ? r.sort(later) : r
     }
     case "remove": {
       const r = each(op.ids, (x) => ({ op: "delete", i: x.i }))
-      return Array.isArray(r) ? r.sort((a, b) => b.i - a.i) : r
+      return Array.isArray(r) ? r.sort(later) : r
     }
     case "transition":
     case "untransition": {
@@ -174,6 +182,12 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
     case "set": {
       // a speed or a speed curve is the footage's rate; anything else a sequence has is its own code's
       const only = Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined)
+      // a text clip's name is its words
+      if (only.length === 1 && only[0] === "name") {
+        if (find(t, op.id)?.clip.kind !== "text") return { why: "a sequence's name is its own code's: only a text clip's words change here" }
+        if (!op.set.name!.trim()) return { why: "a text clip says something: delete it to take its words off" }
+        return each([op.id], (r) => ({ op: "words", i: r.i, text: op.set.name!.trim() }))
+      }
       if (only.length === 1 && only[0] === "curve") {
         // the clip as the curve leaves it: the source it shows and how long that now takes
         const after = apply(t, op)
@@ -199,6 +213,11 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       if (!after.ok) return { why: after.why }
       const keys = find(after.timeline, op.id)?.clip.keys ?? {}
       return [{ op: "keys", i: r.i, keys: Object.fromEntries(Object.entries(keys).filter(([p]) => KEYED.includes(p)).map(([p, ks]) => [p, ks.map((k): [number, number, Ease?] => (k.ease === undefined || k.ease === "linear" ? [k.at, k.value as number] : [k.at, k.value as number, k.ease]))])) }]
+    }
+    case "add": {
+      // words put on the picture: a new sequence of its own
+      if (op.clip.kind !== "text") return { why: "only words are added to a composition here: footage and sound are its code's to place" }
+      return [{ op: "text", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), text: (op.clip.name ?? "Text").trim() || "Text" }]
     }
     default:
       return { why: `the composition's sequences don't take "${op.op}" yet` }

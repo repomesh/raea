@@ -113,7 +113,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
     not built  TL1d, effects and text a plugin
-               adds, a caption split with Enter, TL11a's tools and snapping targets, TL13's measurements. The skills guide's note
+               adds, a caption split with Enter, TL11a's tools and snapping targets, TL13 in a headless raea
+               window (measured in Chrome so far, below). The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 
   Background:
@@ -407,6 +408,13 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
 
     Scenario: TL13b. Measured, as 0.1.4's were
       Then each number above has a harness and a before and after in this file, in a headless window
+      # 11-13, raea-feed e2e/timeline-perf.spec.ts (PERF=1), headless Chrome on the M5 Pro, an item's own timeline
+      # of 400 clips on 12 tracks, three runs:
+      #   a pick drawn        9, 10, 13 ms            (the bar: 50 ms)
+      #   a split drawn       24, 26, 27 ms           (the bar: 100 ms; 12 clips cut at once)
+      #   a 2 s drag          63 to 65 frames a second; a frame's median 14.2 to 14.8 ms, its 95th centile 27 ms,
+      #                       its worst 34 to 49 ms: one frame in twenty is a frame late
+      # Not yet: the same in a headless raea window, and the picture following an edit within 100 ms on the stage.
 
   Rule: TL14. Watch, Listen and Scene are one timeline
     Scenario: TL14a. Watch

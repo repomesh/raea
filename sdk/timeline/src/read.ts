@@ -89,10 +89,22 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
 /** A film with no composition behind it: its scenes as clips of one main track (cut where the picture cuts). Each
  *  clip is the film's picture and its sound together, as footage is until its sound is extracted (TL4c), so a cut,
  *  a move or a speed takes both. Its magnet is on: a scene removed closes up, as a cut of footage does. */
-export function fromRender(o: { frames: Frames; fps: number; cuts?: Frames[] }): Timeline {
+export function fromRender(o: { frames: Frames; fps: number; cuts?: Frames[]; /** the words on screen, each with its span in frames: clips on a text track over the picture (TL7c) */ captions?: { text: string; start: Frames; end: Frames }[] }): Timeline {
   const edges = [0, ...[...new Set(o.cuts ?? [])].filter((c) => c > 0 && c < o.frames).sort((a, b) => a - b), o.frames]
   const scenes: Clip[] = edges.slice(0, -1).map((from, n) => ({ id: `scene-${n + 1}`, kind: "video", name: `Scene ${n + 1}`, start: from, length: edges[n + 1] - from, in: from, source: o.frames }))
-  return { ...empty(o.fps), tracks: [{ id: "main", kind: "main", clips: scenes }] }
+  const main: Track = { id: "main", kind: "main", clips: scenes }
+  const words = (o.captions ?? [])
+    .map((c) => ({ text: c.text, start: Math.max(0, Math.round(c.start)), end: Math.min(o.frames, Math.round(c.end)) }))
+    .filter((c) => c.text.trim() && c.end > c.start)
+    .sort((a, b) => a.start - b.start)
+  if (!words.length) return { ...empty(o.fps), tracks: [main] }
+  // captions that overlap the one before start where it ends: a text track holds one line at a time
+  const captions: Clip[] = []
+  for (const [n, c] of words.entries()) {
+    const from = Math.max(c.start, captions.length ? end(captions[captions.length - 1]) : 0)
+    if (c.end > from) captions.push({ id: `caption-${n + 1}`, kind: "caption", name: c.text, start: from, length: c.end - from })
+  }
+  return { ...empty(o.fps), tracks: [{ id: "captions", kind: "text", name: "Captions", clips: captions }, main] }
 }
 
 /** A render's cut, as the frames of the source played in order (the hand edit's `segments`): what a film's main

@@ -147,6 +147,17 @@ describe("TL0d: a feed item or a controller declares a timeline of its own data"
     expect(done(timeline!, { op: "move", ids: ["set-1"], by: 600 }).tracks[0].clips[1].start).toBe(2400)
   })
 
+  test("a film's captions are clips on a text track over its scenes, and go with the scene they sit on", () => {
+    const t = fromRender({ frames: 300, fps: 30, cuts: [90], captions: [{ text: "Hello", start: 10, end: 60 }, { text: "there", start: 50, end: 80 }, { text: "  ", start: 0, end: 5 }, { text: "Later", start: 120, end: 400 }] })
+    expect(t.tracks.map((k) => [k.id, k.kind])).toEqual([["captions", "text"], ["main", "main"]])
+    expect(t.tracks[0].clips.map((c) => `${c.name} ${c.start}-${c.start + c.length}`)).toEqual(["Hello 10-60", "there 60-80", "Later 120-300"])
+    // the first scene removed: the second scene's caption moves back with it, the first scene's go with it (linkage)
+    const cut = done(t, { op: "remove", ids: ["scene-1"] })
+    expect(cut.tracks[0].clips.map((c) => `${c.name} ${c.start}`)).toEqual(["Later 30"])
+    // a caption's words are its name
+    expect(done(t, { op: "set", id: "caption-1", set: { name: "Hello!" } }).tracks[0].clips[0].name).toBe("Hello!")
+  })
+
   test("what isn't a timeline says what one is", () => {
     expect(readTimeline("x").errors[0]).toContain("a timeline is an object")
     expect(readTimeline({ fps: 30 })).toEqual({ errors: ["tracks is a list of { id, kind, clips }"] })

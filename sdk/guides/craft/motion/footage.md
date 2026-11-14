@@ -26,6 +26,11 @@
   audio's own rate, so they can be shorter than a frame.
 - Use `muted` for picture-only clips, `playbackRate` for speed changes (the sound follows) and `loop` with `endAt` to
   repeat a short source from `startFrom` each time it reaches `endAt` (without `endAt`, nothing loops).
+- For a speed ramp, give `speedCurve` instead of `playbackRate`: `[place, speed]` points over the source from
+  `startFrom` (place 0) to `endAt` (place 1, so it needs `endAt`), each speed from 0.1 to 10, changing in a straight
+  line between points: `speedCurve={[[0, 1], [0.5, 4], [1, 1]]}` speeds up to 4x at the middle and back. The sound
+  follows it. The clip then takes `speedLength(speedPoints("clip", curve), endAt - startFrom)` frames, so give its
+  `<Sequence>` that `durationInFrames` (rounded).
 - Use `<Img src>` for stills. The frame waits until the image has loaded. An image whose file isn't there fails the
   render with "missing image: PATH"; a plain App prints that line and draws nothing.
 

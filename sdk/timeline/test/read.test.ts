@@ -59,7 +59,7 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "set", id: "seq-1", set: { name: " " } })).toEqual({ why: "a text clip says something: delete it to take its words off" })
     expect(seqEdits(t, { op: "set", id: "seq-0", set: { name: "x" } })).toEqual({ why: "a sequence's name is its own code's: only a text clip's words change here" })
     expect(seqEdits(t, { op: "add", kind: "text", clip: { id: "new", kind: "text", name: "Sale ends Friday", start: 45, length: 90 } })).toEqual([{ op: "text", at: 45, frames: 90, text: "Sale ends Friday" }])
-    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words, effects and recordings are added to a composition here: footage and sound are its code's to place" })
+    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words, effects, recordings and the project's files are added to a composition here" })
     // a recording made at the timeline (TL8b) is its file, placed
     expect(seqEdits(t, { op: "add", kind: "sound", clip: { id: "voice-1", kind: "audio", name: "Voice 1", props: { file: "/p/attachments/voice-1.wav" }, start: 30, length: 75 } })).toEqual([{ op: "voice", at: 30, frames: 75, file: "/p/attachments/voice-1.wav" }])
   })
@@ -122,6 +122,28 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(find(back, "seq-7")!.track.kind).toBe("sound")
     // a muted <Audio> isn't footage whose sound was taken out
     expect(fromSequences([{ ...media[media.length - 1], muted: true }], 30).tracks[0].clips[0].muted).toBeUndefined()
+  })
+
+  test("a file of the project's is a new sequence holding it; on the magnet's main track the clips after it move on and it goes in beside the one before it (TL3j)", () => {
+    const t = fromSequences(rows, 30)
+    const add = (kind: string, track: string, start: number, length: number, asset = "/p/media/beach.mp4") => seqEdits(t, { op: "add", kind: track, clip: { id: "m", kind, name: "beach.mp4", start, length, ...(kind !== "image" && { in: 0, source: length }), props: { asset } } })
+    // at frame 100, nearer Second scene's start than its end: in before it, which moves on by its length
+    expect(add("video", "main", 100, 60)).toEqual([
+      { op: "move", i: 3, from: 150, to: 240 },
+      { op: "media", at: 90, frames: 60, kind: "video", file: "/p/media/beach.mp4", after: 0 },
+    ])
+    // at frame 0: first, before First scene, every clip moving on
+    expect(add("image", "main", 0, 90, "/p/media/card.png")).toEqual([
+      { op: "move", i: 0, from: 90, to: 180 },
+      { op: "move", i: 3, from: 180, to: 270 },
+      { op: "media", at: 0, frames: 90, kind: "image", file: "/p/media/card.png", before: 0 },
+    ])
+    // a sound: on a sound track where it was put, nothing moving
+    expect(add("audio", "sound", 40, 75, "/p/media/bed.wav")).toEqual([{ op: "media", at: 40, frames: 75, kind: "audio", file: "/p/media/bed.wav" }])
+    // no magnet: the footage goes over the picture where it was put
+    const gapped = fromSequences([{ ...rows[0], to: 80 }, rows[1]], 30)
+    expect(seqEdits(gapped, { op: "add", kind: "overlay", clip: { id: "m", kind: "video", start: 100, length: 60, in: 0, props: { asset: "/p/media/beach.mp4" } } })).toEqual([{ op: "media", at: 100, frames: 60, kind: "video", file: "/p/media/beach.mp4" }])
+    expect(add("text", "main", 0, 30)).toEqual({ why: "a file goes on the timeline as footage, a still or a sound" })
   })
 
   test("a transition on a cut is the part before going out and the part after coming in, and is read back from them", () => {

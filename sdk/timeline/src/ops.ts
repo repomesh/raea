@@ -348,9 +348,9 @@ function halves(c: Clip, at: Frames, id: string): [Clip, Clip] {
 /** `next` made whole after `op` changed `was`: the main track closed (the magnet), followers carried (linkage),
  *  tracks in time order, empty made tracks gone, transitions only on cuts that are still there. */
 function settle(was: Timeline, next: Timeline, op: Op): Timeline {
-  const named = new Set("ids" in op && op.ids ? op.ids : "id" in op && typeof op.id === "string" ? [op.id] : [])
+  const named = new Set(op.op === "add" ? [op.clip.id] : "ids" in op && op.ids ? op.ids : "id" in op && typeof op.id === "string" ? [op.id] : [])
   let t = next
-  if (t.magnet) t = withTracks(t, (k) => (isMain(k) ? { ...k, clips: close(k.clips, op.op === "move" ? was : undefined, named) } : k))
+  if (t.magnet) t = withTracks(t, (k) => (isMain(k) ? { ...k, clips: close(k.clips, op.op === "move" || op.op === "add" ? was : undefined, named) } : k))
   if (was.linkage && t.linkage && op.op !== "option") t = follow(was, t, op, named)
   t = { ...t, tracks: t.tracks.filter((k) => k.clips.length || was.tracks.some((o) => o.id === k.id)).map((k) => ({ ...k, clips: [...k.clips].sort((a, b) => a.start - b.start) })) }
   const cut = (x: Transition) => {
@@ -362,9 +362,11 @@ function settle(was: Timeline, next: Timeline, op: Op): Timeline {
 
 /** The main track's clips with no gap, from frame 0, in the order of their middles. A clip being moved takes its
  *  place by the edge it leads with, so it swaps with a neighbour once that edge is dragged past the neighbour's
- *  middle (TL4a), as CapCut's main track does. */
+ *  middle (TL4a), as CapCut's main track does. A clip added goes in at the cut nearest where it was put: before
+ *  the clip it lands in when that is nearer its start than its end (CapCut's insert at the playhead, TL3j). */
 function close(clips: Clip[], was: Timeline | undefined, named: Set<string>): Clip[] {
   const key = (c: Clip) => {
+    if (was && named.has(c.id) && !find(was, c.id)) return c.start
     const from = was && named.has(c.id) ? find(was, c.id)?.clip.start : undefined
     if (from === undefined || from === c.start) return c.start + c.length / 2
     return c.start > from ? end(c) : c.start

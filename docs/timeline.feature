@@ -281,6 +281,18 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
       Then Cmd+Z and Cmd+Shift+Z step through every operation, the person's and the agent's (E5a), one history
       And a drag is one step however many frames it crossed
 
+    Scenario: TL3j. The project's media, added at the playhead
+      Given the project's footage, stills and sounds (the files its Source page's Assets tab lists)
+      When I open Media in the bar and press a file's +, as CapCut's media panel adds one
+      Then it is a clip at the playhead as long as its file (a still 3 s, CapCut's default): footage and stills on
+        the main track, a sound on a sound track
+      And in a composition it is a sequence holding a <Video>, an <Img> or an <Audio> of the file, named by its path
+        in the composition's media folder (a file elsewhere in the project copied into media/added/ first, since a
+        render reads that folder alone); on the main track with the magnet on, the clips after it move on by its
+        length and it is drawn under what was over them
+      And in a film cut here it goes over the picture on an overlay track (the film's own cut is its scenes) and
+        plays there, a sound plays where it is placed, and Send tells the agent which file went where
+
   Rule: TL4. The magnet, snapping and linkage
     Scenario: TL4a. The main track's magnet (P)
       Given the magnet is on

@@ -147,6 +147,16 @@ describe("TL4: the magnet and linkage", () => {
     expect(spans(done(film(), { op: "move", ids: ["c"], by: -35 }), "main")).toEqual(["a 0-30", "c 30-60", "b 60-120"])
   })
 
+  test("a clip added to the main track goes in at the cut nearest where it was put, the later clips moving on (TL3j)", () => {
+    const add = (start: number, len: number) => spans(done(film(), { op: "add", kind: "main", clip: clip("n", start, len) }), "main")
+    // at 50, inside b (30-90) and nearer its start: in before b
+    expect(add(50, 20)).toEqual(["a 0-30", "n 30-50", "b 50-110", "c 110-140"])
+    // at 70, nearer b's end: after it
+    expect(add(70, 20)).toEqual(["a 0-30", "b 30-90", "n 90-110", "c 110-140"])
+    // at 0, however long it is: first
+    expect(add(0, 40)).toEqual(["n 0-40", "a 40-70", "b 70-130", "c 130-160"])
+  })
+
   test("with the magnet off a gap is allowed, and a clip dropped over another goes to a track above", () => {
     const off = done(film(), { op: "option", set: { magnet: false } })
     expect(spans(done(off, { op: "remove", ids: ["a"] }), "main")).toEqual(["b 30-90", "c 90-120"])

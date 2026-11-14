@@ -123,6 +123,10 @@ export type SeqEdit =
   /** a <Video>'s own sound taken out (TL4c): the <Video> muted, and an <Audio> of the same file, from the same place
    *  at the same pace and level, in a new sequence from `at` for `frames` after the composition's last */
   | { op: "extract"; i: number; at: number; frames: number }
+  /** a file of the project's put on the timeline from `at` for `frames` (TL3j): a new sequence holding a <Video>, an
+   *  <Img> or an <Audio> of it. In the code it goes after sequence `after` or before sequence `before` (the main
+   *  track's clips either side of it, so it is drawn under what is over them), else after the composition's last */
+  | { op: "media"; at: number; frames: number; kind: "video" | "image" | "audio"; file: string; after?: number; before?: number }
 
 /** The transitions a composition's <Transition> draws (sdk/video transition.tsx). */
 export const CODE_KINDS = ["fade", "slide", "wipe", "zoom"]
@@ -332,10 +336,34 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
         const amount = typeof op.clip.props?.amount === "number" ? Math.min(1, Math.max(0, op.clip.props.amount)) : 1
         return [{ op: "effect", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), kind, amount, ...(parts && { parts }) }]
       }
+      // a file of the project's (TL3j): a new sequence of its own holding it. On the main track with the magnet on,
+      // the clips after it move on first, and it goes in the code beside the clip before it (or the one after, at
+      // the start), so what is over them stays over it
+      const file = op.clip.props?.asset
+      if (typeof file === "string" && file) {
+        const kind = op.clip.kind
+        if (kind !== "video" && kind !== "image" && kind !== "audio") return { why: "a file goes on the timeline as footage, a still or a sound" }
+        const tried = apply(t, op)
+        if (!tried.ok) return { why: tried.why }
+        const now = find(tried.timeline, op.clip.id)
+        if (!now) return { why: "the file found no track to go on" }
+        const media: SeqEdit = { op: "media", at: now.clip.start, frames: now.clip.length, kind, file }
+        if (now.track.kind !== "main") return [media]
+        const moves: SeqEdit[] = []
+        for (const c of now.track.clips) {
+          if (c.id === op.clip.id) continue
+          const was = find(t, c.id)?.clip, i = seqOf(c.id)
+          if (!was || i === undefined) return { why: "the main track holds something that isn't one of the composition's sequences" }
+          if (was.start !== c.start || was.length !== c.length) moves.push({ op: "move", i, from: c.start, to: end(c) })
+        }
+        const k = now.track.clips.findIndex((c) => c.id === op.clip.id)
+        const before = now.track.clips[k - 1], after = now.track.clips[k + 1]
+        return [...moves, { ...media, ...(before ? { after: seqOf(before.id) } : after ? { before: seqOf(after.id) } : {}) }]
+      }
       // a recording made here (its file on this Mac): a new sequence of its own, holding an <Audio>
       if (op.clip.kind === "audio" && typeof op.clip.props?.file === "string" && op.clip.props.file) return [{ op: "voice", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), file: op.clip.props.file }]
       // words put on the picture: a new sequence of its own
-      if (op.clip.kind !== "text") return { why: "only words, effects and recordings are added to a composition here: footage and sound are its code's to place" }
+      if (op.clip.kind !== "text") return { why: "only words, effects, recordings and the project's files are added to a composition here" }
       const style = textStyleOf(op.clip.props?.style)
       return [{ op: "text", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), text: (op.clip.name ?? "Text").trim() || "Text", ...(style && { style }) }]
     }

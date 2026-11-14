@@ -78,16 +78,19 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 22 browser
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 25 browser
   tests in Chrome; of the 21 that can run in a headless raea window (all but the voice test, which there would ask
   for this Mac's microphone) 19 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
   effects, groups and compounds, the posted item's, and a plugin's effect, text style, tool and snap grid; the other
-  two stop at the runner (a route answered late, a reload in the middle of a test):
+  two stop at the runner (a route answered late, a reload in the middle of a test). The three added since (TL5c, TL9c,
+  TL10d's film) are Chrome's alone: one calls the page's own module, and two hold the host's answers or reload:
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
                TL1d (the poster on the main track's head: a click makes the playhead's frame the poster),
                TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,
                rotate and crop shown on the player at once, as are a clip's keyed scale, place, turn and opacity),
-               TL3i, TL4a-c, TL5a-c, TL6a-b, TL7a, TL7b for raea's ten effects (an effect is a clip of its own,
+               TL3i, TL4a-c, TL5a-b, TL5c (and a curve shaped by hand saved by name for the workspace: kept as
+               timeline/curves.json in its folder, a preset in every timeline there, forgotten by its ×), TL6a-b,
+               TL7a, TL7b for raea's ten effects (an effect is a clip of its own,
                shown on the player where it is on), TL7c (text added with T or in a style from the bar, drawn over a
                film where it is on, renamed by a double-click, a caption split at the caret with Enter; raea's
                four text styles and a plugin's, as data), a plugin's effects as data (timeline.effects in its manifest: parts
@@ -98,8 +101,12 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                on the picked clips) and snap grids as data (a clip let go 6 px past a plugin grid's mark lands on
                it, under a browser test with the plugin installed; each e2e run now starts with no plugins
                installed, since an earlier run's grids had stayed approved and snapped a run whose plugin had none),
-               TL9d (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL11b (the
-               model as raea/editor, with its reference page and an example), TL12a-b, TL14a-c
+               TL9c (an agent's editor_edit made as raea/editor operations on the open timeline, which
+               editor_selection gives by clip id: one step in the person's history, undo taking it back, Send
+               telling it as the agent's own, the clips it touched ringing and the bar saying what it did), TL9d
+               (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL10d (below),
+               TL11b (the model as raea/editor, with its reference page and an example), TL12a-b, TL14a-c (a
+               scene's timeline as long as the scene, past its last sequence)
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
                (TL5d), its still placement as its <Nudge>'s props, mirror and crop among them (TL3h), a speed or a
                speed curve for a sequence that holds footage, split in two with it (TL6a-b), a transition on a cut
@@ -117,11 +124,15 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                again only the ranges it is on and an undo plays what it had; the store stays under a size
                (RAEA_SCENE_FRAMES_LIMIT, 1 GiB), the least recently played going first, and beside the switch the
                scene's kept frames say what they take and are cleared by a click; the scene's timeline
-               shows what is kept, and Play runs it over the stage from the scene's own camera, handing back to
-               the live stage where nothing is kept. Seen in a headless raea window on the real host: the sample
-               room drawn, kept, and played at its own rate; a 9 s copy of it opened again with every range
-               kept at once (0.5 s); and a sequence dragged across two of its three ranges drew those two again
-               (9.4 s) and left every kept file as it was
+               shows what is kept, and Play runs it over the stage from the scene's own camera. TL10d: where play
+               reaches a range not kept yet while the frames are being drawn, the picture holds on it saying
+               Buffering until a second from it is kept (with nothing being drawn, the live stage plays on), and
+               a film that runs out of data says Buffering… over the picture. Seen in a headless raea window on
+               the real host: the sample room drawn, kept, and played at its own rate; a 9 s copy of it opened
+               again with every range kept at once (0.5 s); a sequence dragged across two of its three ranges
+               drew those two again (9.4 s) and left every kept file as it was; and with nothing kept and Play
+               pressed at once, Buffering to 7.7 s, the first range played, Buffering again at its end (11.0 s)
+               until the next was kept (13.5 s)
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once; beside a composition's timeline the

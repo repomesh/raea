@@ -88,9 +88,20 @@ Feature: Lightspeed: raea as fast as anything could be, with the best quality, m
         way to draw a composition smaller than it says it is (--w and --h only fill in a size a composition leaves
         out: the same 61-frame ray-traced shot with --w 960 --h 540 came out 1920 by 1080 in 4.1 s, against 4.7 s),
         so a draft (the composition editor's, a 3D scene's kept frames in docs/timeline.feature TL10f) pays for
-        every pixel of the final. A render scale for drafts only (half the pixels each way, as the live stage's
-        quality steps already draw a scene) is the next lever, and is engine work not yet started. A render asked
-        for again with nothing changed is the export cache's: 0.3 s
+        every pixel of the final. A render asked for again with nothing changed is the export cache's: 0.3 s
+      And done 11-13 for drafts, in the SDK and not the engine: `<Composition edit={{ scale }}>` lays the composition
+        out at its own size (useVideoConfig still says it) in a box drawn at that fraction, and registers the smaller
+        size, so a 3D view, a whole-frame camera's or one in a page element's box, traces fewer pixels and a 2D layout
+        written in px keeps every place (a title, a caption bar, a badge and a boxed 3D view drawn at 0.5 match the
+        full-size frame but for softer type). The same 61-frame ray-traced 1080p shot, warm, three passes each: 2.75 s
+        at full size, 1.6 to 1.7 s at 0.5 (1.7 times end to end, about twice on the frames once the start is taken
+        out); the shot frames the same. The app's composition drafts and a scene's kept frames write it in their
+        throwaway source (raea-feed host/edit.ts withDraftScale: the long side at 960 px, never larger, never under a
+        quarter; RAEA_DRAFT_SCALE=1 draws them at full size). What ships is never scaled
+      And open: the full-size render itself. Two to three times there is the cheaper trace upscaled (Solari at a
+        lower main-pass resolution, Bevy's MainPassResolutionOverride, with MetalFX's denoised scaler taking it to
+        full size: its input is the output's size today and it runs before the forward meshes), a rendering decision
+        with its own picture checks
 
     Scenario: PF5. What agents lose time on
       Then fixed in the lane check (tools/agents/check, on this Mac): the CLI surface step tests the raea it rebuilds

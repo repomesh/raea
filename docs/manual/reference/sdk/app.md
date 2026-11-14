@@ -247,6 +247,7 @@ a split, a cut word or a moved span is a change to this list; the length becomes
 | Field | Type | What it is |
 | --- | --- | --- |
 | `segments` | `readonly (readonly [number, number])[]` | the composition's own frame ranges, [from, to), played one after another |
+| `scale` | `number` | the composition drawn at this fraction of its size (above 0, at most 1), what is where kept: it is laid out at its width and height (useVideoConfig still says them) and the whole drawn smaller, so a 3D view traces fewer pixels. A draft's, where a smaller picture changes nothing that ships: the app's composition drafts and a scene's kept frames draw at 0.5 |
 
 ### `OpenOptions`
 

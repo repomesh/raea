@@ -29,6 +29,11 @@ export interface CompositionProps<P extends Record<string, unknown> = Record<str
 export interface Edit {
   /** the composition's own frame ranges, [from, to), played one after another */
   segments?: readonly (readonly [number, number])[];
+  /** the composition drawn at this fraction of its size (above 0, at most 1), what is where kept: it is laid out at
+   *  its width and height (useVideoConfig still says them) and the whole drawn smaller, so a 3D view traces fewer
+   *  pixels. A draft's, where a smaller picture changes nothing that ships: the app's composition drafts and a scene's
+   *  kept frames draw at 0.5 (docs/lightspeed.feature PF4) */
+  scale?: number;
 }
 
 export interface RegisteredComposition {
@@ -94,11 +99,15 @@ function validate(props: CompositionProps<any>, taken: readonly RegisteredCompos
       if (!ok) fail("edit.segments", `has ${JSON.stringify(seg)}: each is [from, to) with 0 <= from < to <= ${props.durationInFrames}`);
     }
   }
+  const scale = props.edit?.scale;
+  if (scale !== undefined && !(typeof scale === "number" && scale > 0 && scale <= 1)) fail("edit.scale", `must be a number above 0 and at most 1, got ${scale}`);
+  const [w, h] = scale === undefined || scale === 1 ? [props.width, props.height] : [Math.max(1, Math.round(props.width * scale)), Math.max(1, Math.round(props.height * scale))];
+  const cut = segments ? edited(props.component, segments) : props.component;
   return {
     id: props.id,
-    component: segments ? edited(props.component, segments) : props.component,
-    width: props.width,
-    height: props.height,
+    component: w === props.width && h === props.height ? cut : scaled(cut, props.width, props.height, w, h),
+    width: w,
+    height: h,
     fps: props.fps,
     durationInFrames: segments ? segments.reduce((n, [a, b]) => n + b - a, 0) : props.durationInFrames,
     defaultProps,
@@ -125,6 +134,23 @@ function edited(Component: ComponentType<any>, segments: readonly (readonly [num
   }
   Edited.displayName = `Edited(${Component.displayName ?? Component.name ?? "Composition"})`;
   return Edited;
+}
+
+/** The component laid out at its own size (`width` by `height`, which useVideoConfig reports inside it) in a box
+ *  drawn at `w` by `h`: an edit's scale. */
+function scaled(Component: ComponentType<any>, width: number, height: number, w: number, h: number): ComponentType<any> {
+  const style = { position: "absolute", left: 0, top: 0, width, height, transform: `scale(${w / width}, ${h / height})`, transformOrigin: "0 0" } as const;
+  function Scaled(props: Record<string, unknown>) {
+    return (
+      <div style={style}>
+        <Sequence layout="none" width={width} height={height}>
+          <Component {...props} />
+        </Sequence>
+      </div>
+    );
+  }
+  Scaled.displayName = `Scaled(${Component.displayName ?? Component.name ?? "Composition"})`;
+  return Scaled;
 }
 
 /** Declares a composition inside the root. It draws nothing itself; a renderer finds it through registerRoot. */

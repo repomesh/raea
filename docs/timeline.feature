@@ -78,7 +78,7 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 21 browser
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 22 browser
   tests in Chrome; of the 19 that can run in a headless raea window (all but the voice test, which there would ask
   for this Mac's microphone) 16 pass (17 with the posted item's, since a window opened again starts with the runner's routes), among them a
   composition's every edit, freeze and reverse, mirror and crop, effects, groups and compounds; the others stop at
@@ -122,11 +122,13 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                (9.4 s) and left every kept file as it was
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
-               (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
+               (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once; beside a composition's timeline the
+               kept drafts say what they take and are cleared by a click
     not built  TL13a's drag at the window's rate with 400 clips (measured below: Chrome keeps it, raea's window
                draws 35 to 37 frames a second, and what is left is the window's own frame after a change). A
-               plugin's tools, snap grids, effects and text styles are checked as data and offered in the bar, but
-               not yet seen with a plugin installed. The skills guide's note
+               plugin's snap grid is checked as data and added to what edges snap to, but a snap to one isn't
+               under a browser test (its effect, text style and tool are, with the plugin installed and approved).
+               The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 
   Background:

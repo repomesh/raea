@@ -64,6 +64,17 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "add", kind: "sound", clip: { id: "voice-1", kind: "audio", name: "Voice 1", props: { file: "/p/attachments/voice-1.wav" }, start: 30, length: 75 } })).toEqual([{ op: "voice", at: 30, frames: 75, file: "/p/attachments/voice-1.wav" }])
   })
 
+  test("a sequence's placement is its <Nudge>'s still props: read as the clip's, written whole as they now stand (TL3h)", () => {
+    const t = fromSequences([{ ...rows[0], look: { scale: 1.2, mirror: true, crop: [0.1, 0, 0, 0.25] } }], 30)
+    expect(t.tracks[0].clips[0].props).toEqual({ scale: 1.2, mirror: true, cropLeft: 0.1, cropTop: 0, cropRight: 0, cropBottom: 0.25 })
+    // one more prop set: the whole placement goes to the host
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { props: { rotate: 90 } } })).toEqual([{ op: "nudge", i: 0, look: { scale: 1.2, rotate: 90, mirror: true, crop: [0.1, 0, 0, 0.25] } }])
+    // unmirrored and uncropped: those go
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { props: { mirror: false, cropLeft: 0, cropBottom: 0 } } })).toEqual([{ op: "nudge", i: 0, look: { scale: 1.2 } }])
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { props: { colour: "red" } } })).toMatchObject({ why: expect.stringContaining("colour is its own code's") })
+    expect(seqEdits(t, { op: "set", id: "seq-0", set: { props: { scale: 0 } } })).toEqual({ why: "a scale is above 0" })
+  })
+
   test("a sequence holding an <Effect> is an effect clip: its kind and amount set, and one added is a new sequence (TL7b)", () => {
     const t = fromSequences([{ ...rows[0] }, { ...rows[2], effect: { kind: "mono", amount: 0.5 } }], 30)
     const fx = t.tracks.flatMap((k) => k.clips).find((c) => c.id === "seq-1")!

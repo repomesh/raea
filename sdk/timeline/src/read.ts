@@ -23,6 +23,8 @@ export interface SeqRow {
   /** its footage's speed as a curve, each [place 0 to 1, speed] (its media's speedCurve), over `shows` source frames (TL6b) */
   curve?: [number, number][]
   shows?: number
+  /** how it is placed, as its <Nudge> says without keys: moved, scaled, turned, faded, mirrored, cropped (TL3h) */
+  look?: SeqLook
   /** the words it shows, when words are all it shows: a text clip, its words changed by renaming it (TL7c) */
   text?: string
   /** the effect it puts on the picture under it, when an <Effect> is all it holds: an effect clip (TL7b) */
@@ -36,6 +38,17 @@ export interface SeqRow {
   startFrom?: number
   volume?: number
 }
+/** A sequence's still placement: its <Nudge>'s props (sdk/video nudge.tsx). `crop` is left, top, right, bottom. */
+export interface SeqLook {
+  x?: number
+  y?: number
+  scale?: number
+  rotate?: number
+  opacity?: number
+  mirror?: boolean
+  crop?: [number, number, number, number]
+}
+const CROPS = ["cropLeft", "cropTop", "cropRight", "cropBottom"]
 /** The host's edit to a sequence: its new span, a split, a delete. */
 export type SeqEdit =
   | { op: "move"; i: number; from: number; to: number }
@@ -48,6 +61,8 @@ export type SeqEdit =
   /** the footage it holds played by a speed curve over `source` frames of it, the sequence `frames` long (what the
    *  curve takes); null takes the curve off (TL6b) */
   | { op: "curve"; i: number; curve: [number, number][] | null; source: number; frames: number }
+  /** its still placement as it now stands: written as its <Nudge>'s props, a prop at its plain value taken off (TL3h) */
+  | { op: "nudge"; i: number; look: SeqLook }
   /** a text sequence's words (TL7c) */
   | { op: "words"; i: number; text: string }
   /** words put on the picture from `at` for `frames`: a new sequence after the composition's last (TL7c) */
@@ -69,6 +84,12 @@ export const CODE_KINDS = ["fade", "slide", "wipe", "zoom"]
 export const KEYED = ["x", "y", "scale", "rotate", "opacity"]
 
 const seqId = (i: number) => `seq-${i}`
+// a sequence's placement as its clip's props (the crop a prop a side, as a film's clip has it)
+const lookProps = (l: SeqLook): Record<string, number | boolean> => ({
+  ...Object.fromEntries(KEYED.flatMap((k) => (typeof l[k as keyof SeqLook] === "number" ? [[k, l[k as keyof SeqLook] as number]] : []))),
+  ...(l.mirror && { mirror: true }),
+  ...(l.crop && Object.fromEntries(CROPS.map((k, n) => [k, l.crop![n]]))),
+})
 // the edits to later elements first (an edit that adds or removes an element moves the places after it)
 const later = (a: SeqEdit, b: SeqEdit) => ("i" in b ? b.i : 0) - ("i" in a ? a.i : 0)
 const seqOf = (id: string): number | undefined => (/^seq-\d+$/.test(id) ? Number(id.slice(4)) : undefined)
@@ -80,7 +101,7 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const media = rows.filter((r) => r.media)
   rows = rows.filter((r) => !r.media)
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.effect ? "effect" : r.text === undefined ? "sequence" : "text", name: r.effect ? (EFFECTS.find((e) => e.kind === r.effect!.kind)?.title ?? r.effect.kind) : (r.text ?? r.label ?? r.name), ...(r.effect && { props: { effect: r.effect.kind, amount: r.effect.amount } }), start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.effect ? "effect" : r.text === undefined ? "sequence" : "text", name: r.effect ? (EFFECTS.find((e) => e.kind === r.effect!.kind)?.title ?? r.effect.kind) : (r.text ?? r.label ?? r.name), ...(r.effect && { props: { effect: r.effect.kind, amount: r.effect.amount } }), ...(r.look && Object.keys(r.look).length && { props: lookProps(r.look) }), start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -198,6 +219,19 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
         if (effect !== undefined && !EFFECTS.some((e) => e.kind === effect)) return { why: `raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${String(effect)}" isn't one of them` }
         if (amount !== undefined && !(typeof amount === "number" && amount >= 0 && amount <= 1)) return { why: "an effect's amount runs from 0 to 1" }
         return each([op.id], (r) => ({ op: "fx", i: r.i, ...(effect !== undefined && { kind: String(effect) }), ...(amount !== undefined && { amount: Math.round((amount as number) * 1000) / 1000 }) }))
+      }
+      // how a sequence is placed (moved, scaled, turned, faded, mirrored, cropped): its <Nudge>'s still props
+      if (only.length === 1 && only[0] === "props" && find(t, op.id)?.clip.kind !== "effect") {
+        const bad = Object.keys(op.set.props!).filter((k) => !KEYED.includes(k) && k !== "mirror" && !CROPS.includes(k))
+        if (bad.length) return { why: `a sequence is placed by its ${[...KEYED, "mirror", "crop"].join(", ")}: ${bad.join(", ")} ${bad.length > 1 ? "are" : "is"} its own code's` }
+        const after = apply(t, op)
+        if (!after.ok) return { why: after.why }
+        const p = find(after.timeline, op.id)?.clip.props ?? {}
+        const num = (k: string) => (typeof p[k] === "number" && Number.isFinite(p[k]) ? Math.round((p[k] as number) * 1000) / 1000 : undefined)
+        if ((num("scale") ?? 1) <= 0) return { why: "a scale is above 0" }
+        const crop = CROPS.map((k) => Math.min(0.9, Math.max(0, num(k) ?? 0))) as [number, number, number, number]
+        const look: SeqLook = { ...Object.fromEntries(KEYED.flatMap((k) => (num(k) === undefined ? [] : [[k, num(k)]]))), ...(p.mirror === true && { mirror: true }), ...(crop.some((v) => v > 0) && { crop }) }
+        return each([op.id], (r) => ({ op: "nudge", i: r.i, look }))
       }
       // a text clip's name is its words
       if (only.length === 1 && only[0] === "name") {

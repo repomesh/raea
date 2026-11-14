@@ -1,5 +1,6 @@
 // Nudge: a part placed by hand on raea's picture (docs/editing.feature, E1). The editor writes a moved, scaled, turned
-// or faded part back to the composition as one <Nudge x y scale rotate opacity> around the element that holds it; the
+// or faded part back to the composition as one <Nudge x y scale rotate opacity> around the element that holds it (the
+// timeline also writes mirror and crop, docs/timeline.feature TL3h); the
 // next change to the same part re-writes that line.
 import { cloneElement, isValidElement, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { useCurrentFrame } from "@raea/app/clock";
@@ -38,6 +39,10 @@ export interface NudgeProps {
   rotate?: number;
   /** 0 (gone) to 1 (as it was), times its own opacity */
   opacity?: number;
+  /** flipped left to right */
+  mirror?: boolean;
+  /** how much is cut off its left, top, right and bottom, each a share of that side from 0 to 0.9 */
+  crop?: [left: number, top: number, right: number, bottom: number];
   /** any of the above over time: its keys, each [frame, value, ease?], in frames from where this part's time starts
    *  (its <Sequence>'s first frame). A keyed property's still value is ignored. */
   keys?: Partial<Record<NudgeProp, NudgeKey[]>>;
@@ -59,7 +64,7 @@ function Keyed({ keys, children, ...still }: NudgeProps & { keys: NonNullable<Nu
   return <Placed {...still} {...now}>{children}</Placed>;
 }
 
-function Placed({ x = 0, y = 0, scale = 1, rotate = 0, opacity = 1, children }: Omit<NudgeProps, "keys">) {
+function Placed({ x = 0, y = 0, scale = 1, rotate = 0, opacity = 1, mirror = false, crop, children }: Omit<NudgeProps, "keys">) {
   for (const [k, v] of Object.entries({ x, y, scale, rotate, opacity }))
     if (!Number.isFinite(v)) throw new RangeError(`Nudge: ${k} must be a finite number, got ${v}`);
   if (scale <= 0) throw new RangeError(`Nudge: scale must be above 0, got ${scale}`);
@@ -67,8 +72,11 @@ function Placed({ x = 0, y = 0, scale = 1, rotate = 0, opacity = 1, children }: 
   const move = [
     (x || y) && `translate(${x}px, ${y}px)`,
     rotate && `rotate(${rotate}deg)`,
-    scale !== 1 && `scale(${scale})`,
+    (scale !== 1 || mirror) && (mirror ? `scale(${-scale}, ${scale})` : `scale(${scale})`),
   ].filter(Boolean).join(" ") || undefined;
+  if (crop !== undefined && (!Array.isArray(crop) || crop.length !== 4 || crop.some((v) => !(v >= 0 && v <= 0.9)))) throw new RangeError(`Nudge: crop is [left, top, right, bottom], each from 0 to 0.9, got ${JSON.stringify(crop)}`);
+  // (inset's order is top, right, bottom, left)
+  const cut = crop?.some((v) => v > 0) ? `inset(${crop[1] * 100}% ${crop[2] * 100}% ${crop[3] * 100}% ${crop[0] * 100}%)` : undefined;
   if (isValidElement(children) && typeof children.type === "string") {
     const style = ((children.props as { style?: CSSProperties }).style ?? {}) as CSSProperties;
     const own = typeof style.opacity === "number" ? style.opacity : style.opacity === undefined ? 1 : Number(style.opacity);
@@ -77,8 +85,9 @@ function Placed({ x = 0, y = 0, scale = 1, rotate = 0, opacity = 1, children }: 
         ...style,
         ...(move ? { transform: style.transform ? `${move} ${style.transform}` : move } : {}),
         ...(fade !== 1 ? { opacity: own * fade } : {}),
+        ...(cut ? { clipPath: cut } : {}),
       },
     });
   }
-  return <AbsoluteFill style={{ ...(move ? { transform: move } : {}), ...(fade !== 1 ? { opacity: fade } : {}) }}>{children}</AbsoluteFill>;
+  return <AbsoluteFill style={{ ...(move ? { transform: move } : {}), ...(fade !== 1 ? { opacity: fade } : {}), ...(cut ? { clipPath: cut } : {}) }}>{children}</AbsoluteFill>;
 }

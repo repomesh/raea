@@ -90,7 +90,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                said, its file in the project's attachments), TL11a for easings, speed curves, transitions and effects as data,
                TL12a-b, TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
-               (TL5d), a speed or a speed curve for a sequence that holds footage (TL6a-b), a transition on a cut
+               (TL5d), its still placement as its <Nudge>'s props, mirror and crop among them (TL3h), a speed or a
+               speed curve for a sequence that holds footage (TL6a-b), a transition on a cut
                (TL7a), an effect as a sequence holding an <Effect>, its kind and amount (TL7b), a sequence of
                words as a text clip, its words rewritten, words added as a new sequence (TL7c), a <Video>'s or an
                <Audio>'s level (TL8a), a recording as a sequence holding an <Audio> of its file (TL8c); each
@@ -110,8 +111,7 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
-    not built  TL1d, TL3f, mirror and crop on a composition's sequence (its <Nudge> has no such props yet: the
-               edit is refused with why), a split of a sequence under a speed curve, effects and text a plugin
+    not built  TL1d, TL3f, a split of a sequence under a speed curve, effects and text a plugin
                adds, a caption split with Enter, TL9d, TL11a's tools and snapping targets, TL13's measurements. The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 

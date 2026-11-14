@@ -37,3 +37,25 @@ describe("a keyed property's value at a frame", () => {
     expect(renderFrame(<Nudge scale={3}><div>hi</div></Nudge>, { ...opts, frame: 0 })).toContain("scale(3)");
   });
 });
+
+describe("a placed part mirrored and cropped (docs/timeline.feature TL3h)", () => {
+  const at = (el: JSX.Element) => renderFrame(el, { ...opts, frame: 0 });
+
+  test("mirror flips it left to right, with its scale", () => {
+    expect(at(<Nudge mirror><div>hi</div></Nudge>)).toContain("transform:scale(-1, 1)");
+    expect(at(<Nudge mirror scale={2} x={10}><div>hi</div></Nudge>)).toContain("transform:translate(10px, 0px) scale(-2, 2)");
+  });
+
+  test("crop cuts each side off by its share, on an element and on a component's layer", () => {
+    expect(at(<Nudge crop={[0.1, 0, 0, 0.25]}><div>hi</div></Nudge>)).toContain("clip-path:inset(0% 0% 25% 10%)");
+    const Part = () => <p>part</p>;
+    expect(at(<Nudge crop={[0, 0.5, 0, 0]}><Part /></Nudge>)).toContain("clip-path:inset(50% 0% 0% 0%)");
+    // no crop, no clip
+    expect(at(<Nudge crop={[0, 0, 0, 0]}><div>hi</div></Nudge>)).not.toContain("clip-path");
+  });
+
+  test("a crop out of range fails", () => {
+    expect(() => at(<Nudge crop={[1, 0, 0, 0]}><div>hi</div></Nudge>)).toThrow(/crop/);
+    expect(() => at(<Nudge crop={[0, 0, 0] as unknown as [number, number, number, number]}><div>hi</div></Nudge>)).toThrow(/crop/);
+  });
+});

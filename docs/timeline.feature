@@ -98,8 +98,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                on the picked clips) and snap grids as data (a clip let go 6 px past a plugin grid's mark lands on
                it, under a browser test with the plugin installed; each e2e run now starts with no plugins
                installed, since an earlier run's grids had stayed approved and snapped a run whose plugin had none),
-               TL9d (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL12a-b,
-               TL14a-c
+               TL9d (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL11b (the
+               model as raea/editor, with its reference page and an example), TL12a-b, TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
                (TL5d), its still placement as its <Nudge>'s props, mirror and crop among them (TL3h), a speed or a
                speed curve for a sequence that holds footage, split in two with it (TL6a-b), a transition on a cut
@@ -405,7 +405,14 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
         a tool in the bar with its key, and a snapping target
       And raea's own tracks, clips, easings and transitions are registered through the same points
 
+    @done
     Scenario: TL11b. The SDK alone
+      # Status 11-13: built. The model is one import, `raea/editor` (sdk/raea/src/editor.ts re-exports sdk/timeline;
+      # raea/timeline was already the video Sequence module), resolved by a bundle as @raea/timeline. Its reference page
+      # is docs/manual/reference/sdk/editor.md, every type and field documented (the manual-ref gate fails on one
+      # without), with docs/manual/examples/edits.tsx as its example: a timeline built in code, split, keyed, sped up
+      # and undone by the inverses, rendered (180 frames to 150, then "as it was"). The skills' SDK reference lists it
+      # (tools/skills.sh now follows export *, raea-skills #65) and motion/footage teaches it (raea-skills #64)
       Then sdk/timeline has no React and no DOM: an agent's script, the host and a test use it as the app does
       And its reference page lists every type and operation with an example, in the skills reference
 

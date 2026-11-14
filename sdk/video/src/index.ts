@@ -3,6 +3,7 @@ export * from "./media";
 export * from "./timeline";
 export * from "./registry";
 export * from "./nudge";
+export * from "./transition";
 export * from "./words";
 export * from "./region";
 export * from "./overlay";

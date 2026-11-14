@@ -12,6 +12,7 @@
     "./timeline": "./src/timeline.tsx",
     "./registry": "./src/registry.tsx",
     "./nudge": "./src/nudge.tsx",
+    "./transition": "./src/transition.tsx",
     "./words": "./src/words.tsx",
     "./region": "./src/region.tsx",
     "./overlay": "./src/overlay.tsx",

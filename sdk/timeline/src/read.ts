@@ -19,6 +19,9 @@ export interface SeqRow {
   keys?: Record<string, [number, number, Ease?][]>
   /** how fast the footage it holds plays (its media's playbackRate), when it holds footage at one rate (TL6a) */
   speed?: number
+  /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
+  in?: { kind: string; frames: number }
+  out?: { kind: string; frames: number }
 }
 /** The host's edit to a sequence: its new span, a split, a delete. */
 export type SeqEdit =
@@ -29,7 +32,11 @@ export type SeqEdit =
   | { op: "keys"; i: number; keys: Record<string, [number, number, Ease?][]> }
   /** the footage it holds played at `speed`, its length following (TL6a) */
   | { op: "speed"; i: number; speed: number }
+  /** how it comes in ("in") or goes out ("out"): its <Transition>'s edge set, or taken off with 0 frames (TL7a) */
+  | { op: "edge"; i: number; side: "in" | "out"; kind: string; frames: number }
 
+/** The transitions a composition's <Transition> draws (sdk/video transition.tsx). */
+export const CODE_KINDS = ["fade", "slide", "wipe", "zoom"]
 /** The properties a sequence's <Nudge> can key (sdk/video nudge.tsx). */
 export const KEYED = ["x", "y", "scale", "rotate", "opacity"]
 
@@ -45,8 +52,18 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
+  // a transition is on a cut: the part before it goes out and the part after it comes in, the same way
+  const by = new Map(rows.map((r) => [seqId(r.i), r]))
+  const transitions = tracks.flatMap((k) =>
+    k.clips.flatMap((c) => {
+      const out = by.get(c.id)?.out
+      const next = k.clips.find((o) => o.start === end(c))
+      const into = next && by.get(next.id)?.in
+      return out && into && out.kind === into.kind ? [{ id: `x-${c.id}`, kind: out.kind, after: c.id, length: out.frames + into.frames }] : []
+    }),
+  )
   // lanes below the first are nested deeper: drawn under it, as the strip has them
-  return { ...empty(fps), tracks, magnet: gapless }
+  return { ...empty(fps), tracks, transitions, magnet: gapless }
 }
 
 /** A film with no composition behind it: its scenes as clips of one main track (cut where the picture cuts). Each
@@ -92,6 +109,22 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
     case "remove": {
       const r = each(op.ids, (x) => ({ op: "delete", i: x.i }))
       return Array.isArray(r) ? r.sort((a, b) => b.i - a.i) : r
+    }
+    case "transition":
+    case "untransition": {
+      const x = op.op === "transition" ? op.transition : t.transitions.find((o) => o.id === op.id)
+      if (!x) return { why: "there is no such transition" }
+      if (op.op === "transition" && !CODE_KINDS.includes(x.kind)) return { why: `a composition draws ${CODE_KINDS.join(", ")}: "${x.kind}" isn't one its <Transition> has` }
+      const a = row(x.after), at = find(t, x.after)
+      const b = at ? at.track.clips.find((c) => c.start === end(at.clip)) : undefined
+      const nb = b && row(b.id)
+      if (!a || !nb) return { why: "a transition sits on a cut between two of the composition's sequences" }
+      // half on each side of the cut, no longer than either part
+      const len = op.op === "transition" ? Math.max(1, Math.min(Math.round(x.length), a.clip.length * 2, nb.clip.length * 2)) : 0
+      return [
+        { op: "edge", i: a.i, side: "out", kind: x.kind, frames: Math.ceil(len / 2) },
+        { op: "edge", i: nb.i, side: "in", kind: x.kind, frames: Math.floor(len / 2) },
+      ]
     }
     case "set": {
       // a speed alone is the footage's rate; anything else a sequence has is its own code's

@@ -43,6 +43,23 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(fromSequences([{ ...rows[0], speed: 2 }], 30).tracks[0].clips[0].speed).toBe(2)
   })
 
+  test("a transition on a cut is the part before going out and the part after coming in, and is read back from them", () => {
+    const t = fromSequences(rows, 30)
+    expect(seqEdits(t, { op: "transition", transition: { id: "x-seq-0", kind: "slide", after: "seq-0", length: 15 } })).toEqual([
+      { op: "edge", i: 0, side: "out", kind: "slide", frames: 8 },
+      { op: "edge", i: 3, side: "in", kind: "slide", frames: 7 },
+    ])
+    const cut = fromSequences([{ ...rows[0], out: { kind: "slide", frames: 8 } }, { ...rows[1], in: { kind: "slide", frames: 7 } }], 30)
+    expect(cut.transitions).toEqual([{ id: "x-seq-0", kind: "slide", after: "seq-0", length: 15 }])
+    expect(seqEdits(cut, { op: "untransition", id: "x-seq-0" })).toEqual([
+      { op: "edge", i: 0, side: "out", kind: "slide", frames: 0 },
+      { op: "edge", i: 3, side: "in", kind: "slide", frames: 0 },
+    ])
+    // a kind the composition's <Transition> doesn't draw, and a part with nothing after it
+    expect(seqEdits(t, { op: "transition", transition: { id: "x", kind: "Glitch", after: "seq-0", length: 15 } })).toEqual({ why: 'a composition draws fade, slide, wipe, zoom: "Glitch" isn\'t one its <Transition> has' })
+    expect(seqEdits(t, { op: "transition", transition: { id: "x", kind: "fade", after: "seq-3", length: 15 } })).toEqual({ why: "a transition sits on a cut between two of the composition's sequences" })
+  })
+
   test("a key on a sequence is its <Nudge>'s keys, written whole; what the wrapper can't key is refused", () => {
     const keyed = fromSequences([{ ...rows[0], keys: { scale: [[0, 1], [45, 1.2, [0.2, 0, 0, 1]]] } }, rows[1]], 30)
     expect(keyed.tracks[0].clips[0].keys).toEqual({ scale: [{ at: 0, value: 1 }, { at: 45, value: 1.2, ease: [0.2, 0, 0, 1] }] })

@@ -18,12 +18,13 @@ export interface Adds {
   transitions?: TransitionKind[]
 }
 
-/** raea's own transitions (TL7a). */
+/** raea's own transitions (TL7a): the kinds its <Transition> draws (sdk/video transition.tsx). Two parts that only
+ *  touch have no frames of each other to mix, so there is no dissolve: a fade goes through black. */
 export const TRANSITIONS: TransitionKind[] = [
-  { kind: "dissolve", title: "Dissolve" },
-  { kind: "fade", title: "Fade through black" },
-  { kind: "wipe", title: "Wipe" },
+  { kind: "fade", title: "Fade" },
   { kind: "slide", title: "Slide" },
+  { kind: "wipe", title: "Wipe" },
+  { kind: "zoom", title: "Zoom" },
 ]
 
 const isEase = (e: unknown): e is Ease => e === "linear" || e === "hold" || (Array.isArray(e) && e.length === 4 && e.every((n) => typeof n === "number" && Number.isFinite(n)) && e[0] >= 0 && e[0] <= 1 && e[2] >= 0 && e[2] <= 1)

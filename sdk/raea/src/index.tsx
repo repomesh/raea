@@ -56,6 +56,7 @@ export {
 } from "@raea/video/registry";
 
 export { Nudge, type NudgeProps } from "@raea/video/nudge";
+export { Transition, type TransitionProps, type TransitionEdge, type TransitionKind } from "@raea/video/transition";
 export { Region, useRegion, proofBoxes, regionBand, type RegionName, type RegionBox, type RegionProps, type ProofInput, type ProofPart } from "@raea/video/region";
 export { InputRegion } from "@raea/video/input-region";
 export { lyria, sao, fish, isGeneratedAsset, type AssetKind, type GeneratedAsset } from "@raea/asset/assets";

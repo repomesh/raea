@@ -38,7 +38,7 @@ See [Your first video](../../start/first-video.md) for the whole loop, and
 import { AbsoluteFill, ACTION_KEY, actionsIn, Animate } from "raea"
 ```
 
-`raea` exports 18 components, 8 hooks, 55 functions, 9 values, 91 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
+`raea` exports 19 components, 8 hooks, 55 functions, 9 values, 94 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
 
 ## Components
 
@@ -245,6 +245,16 @@ Each child in its own <Animate>, entrances `each` frames apart (or by grid dista
 render gives the same element back.
 
 Also takes the props of [`StaggerProps`](animation.md#staggerprops) (`each`, `grid`, `exitEach`); [`AnimateOwnProps`](animation.md#animateownprops).
+
+### `Transition`
+
+Its children, coming in over the part's first frames and going out over its last.
+
+| Prop | Type | What it does |
+| --- | --- | --- |
+| `in` | `TransitionEdge` | over the part's first frames |
+| `out` | `TransitionEdge` | over the part's last frames |
+| `children` | `ReactNode` | the part it brings in and takes out: what the <Sequence> holds |
 
 ### `Video`
 
@@ -1686,6 +1696,27 @@ many steps in the state at least (`after`), and what to do on the way (`actions`
 ```ts
 type TransitionConfig = Target<N> & When<C, E> & { /** steps in the state before this transition may fire (0) */ after?: number; actions?: Actions<C, E>; /** what the transition means: a decider reads it (a model's option description), reports show it */ description?: string; }
 ```
+
+### `TransitionEdge`
+
+| Field | Type | What it is |
+| --- | --- | --- |
+| `kind` (required) | `TransitionKind` | which transition: fade, slide, wipe or zoom |
+| `frames` (required) | `number` | how many of the part's frames it takes |
+
+### `TransitionKind`
+
+fade: through black. slide: in from the right, out to the left. wipe: uncovered from the left, covered from the
+left. zoom: grows in from 85%, shrinks out to 85%, fading. A dissolve between two parts that only touch has no
+frames of the other to mix with, so it is written as a fade.
+
+```ts
+type TransitionKind = "fade" | "slide" | "wipe" | "zoom"
+```
+
+### `TransitionProps`
+
+The props of [`Transition`](#transition), tabled there.
 
 ### `TransitionRecord`
 

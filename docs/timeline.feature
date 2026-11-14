@@ -80,8 +80,9 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
   PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 21 browser
   tests in Chrome; of the 19 that can run in a headless raea window (all but the voice test, which there would ask
-  for this Mac's microphone) 16 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
-  effects, groups and compounds; the other three stop at the runner (a route answered late, a reload, a posted item):
+  for this Mac's microphone) 16 pass (17 with the posted item's, since a window opened again starts with the runner's routes), among them a
+  composition's every edit, freeze and reverse, mirror and crop, effects, groups and compounds; the others stop at
+  the runner (a route answered late, a reload in the middle of a test):
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
                TL1d (the poster on the main track's head: a click makes the playhead's frame the poster),
                TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,
@@ -120,8 +121,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
-    not built  TL11a's tools and snapping targets, TL13 in a headless raea
-               window (measured in Chrome so far, below). The skills guide's note
+    not built  TL11a's tools and snapping targets; TL13a's drag at the window's rate with 400 clips (measured
+               below: Chrome keeps it, raea's window draws 27 to 31 frames a second). The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 
   Background:
@@ -421,7 +422,18 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
       #   a split drawn       24, 26, 27 ms           (the bar: 100 ms; 12 clips cut at once)
       #   a 2 s drag          63 to 65 frames a second; a frame's median 14.2 to 14.8 ms, its 95th centile 27 ms,
       #                       its worst 34 to 49 ms: one frame in twenty is a frame late
-      # Not yet: the same in a headless raea window, and the picture following an edit within 100 ms on the stage.
+      # The same in a headless raea window (blitz/pw-run.mjs, RAEA_PAGE_FPS=120), after each clip's and each
+      # track's drawing was kept while nothing it shows changes (Chrome's drag went to 68 to 71 frames a second):
+      #   a pick drawn        45 to 59 ms             (at the bar, not under it)
+      #   a split drawn       59 to 64 ms
+      #   a 2 s drag          27 to 31 frames a second, a frame's median 31 to 36 ms: not the window's rate
+      #   nothing moving      63 frames a second; the pointer moving over it, 61
+      # and with 48 clips in place of 400: nothing moving 106 frames a second, a drag 56, a pick 39 ms. So in the
+      # window both scale with the clips on screen: what the window draws each frame (16 ms for 400 clips, 9 for
+      # 48) and what a drag step adds to it (about 18 ms, 8 with 48). Keeping the clips' drawings did not move the
+      # window's numbers, so the step's cost there is not React's work on the clips: it is not yet told apart
+      # between the operation itself (snapping and settling 400 clips) and the window laying the moved clips out.
+      # Not yet: that attribution and the fix, and the picture following an edit within 100 ms on the stage.
 
   Rule: TL14. Watch, Listen and Scene are one timeline
     Scenario: TL14a. Watch

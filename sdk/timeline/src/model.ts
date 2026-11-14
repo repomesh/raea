@@ -127,11 +127,14 @@ export function timecode(frames: Frames, fps: number): string {
   return `${two(Math.floor(f / whole / 60))}:${two(Math.floor(f / whole) % 60)}:${two(f % whole)}`
 }
 
+/** Kinds a plugin said stack under the picture, with the sound (registry.ts sets them). */
+export const under = new Set<string>()
+
 /** Where a track of this kind goes among the others (TL1a): after the last of its own kind, else in ORDER's place. */
 export function slot(tracks: Track[], kind: TrackKind): number {
   const rank = (k: TrackKind) => (ORDER.includes(k) ? ORDER.indexOf(k) : ORDER.indexOf("overlay"))
   // sound tracks grow downward (a new one goes under the others); every other kind grows upward
-  if (kind === "sound") return tracks.length
+  if (kind === "sound" || under.has(kind)) return tracks.length
   const first = tracks.findIndex((t) => rank(t.kind) >= rank(kind))
   return first < 0 ? tracks.length : first
 }

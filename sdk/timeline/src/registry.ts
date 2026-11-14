@@ -2,7 +2,7 @@
 // curves and transitions, as data. raea's own come first and can't be replaced; a plugin's are checked before they
 // are offered, and one that isn't well formed is left out with why.
 import { EASES } from "./keys"
-import type { Ease, SpeedPoint } from "./model"
+import { type Ease, type SpeedPoint, under } from "./model"
 import { CURVES, FASTEST, SLOWEST } from "./speed"
 
 export interface TransitionKind {
@@ -11,12 +11,31 @@ export interface TransitionKind {
   title: string
 }
 
+/** A kind of track: what its head says, and where it stacks (with the tracks over the picture, or with the sound
+ *  under it). A clip on it is of that kind. */
+export interface TrackKindInfo {
+  kind: string
+  title: string
+  under?: boolean
+}
+
 /** What one plugin adds. */
 export interface Adds {
   eases?: Record<string, Ease>
   curves?: Record<string, SpeedPoint[]>
   transitions?: TransitionKind[]
+  /** kinds of track of its own (TL11a): a clip posted or added on one is drawn and edited like any other */
+  tracks?: TrackKindInfo[]
 }
+
+/** raea's own kinds of track, in the order they stack (TL1a). */
+export const TRACKS: TrackKindInfo[] = [
+  { kind: "effect", title: "Effects" },
+  { kind: "text", title: "Text" },
+  { kind: "overlay", title: "Overlay" },
+  { kind: "main", title: "Main" },
+  { kind: "sound", title: "Sound", under: true },
+]
 
 /** raea's own transitions (TL7a): the kinds its <Transition> draws (sdk/video transition.tsx). Two parts that only
  *  touch have no frames of each other to mix, so there is no dissolve: a fade goes through black. */
@@ -59,16 +78,31 @@ export function readAdds(raw: unknown): { adds: Adds; errors: string[] } {
         else (adds.transitions ??= []).push({ kind: t.kind, title: t.title })
       }
   }
+  if (r.tracks !== undefined) {
+    if (!Array.isArray(r.tracks)) errors.push("timeline.tracks is a list of { kind, title }")
+    else
+      for (const [i, x] of r.tracks.entries()) {
+        const t = x as Partial<TrackKindInfo> | null
+        if (!t || typeof t.kind !== "string" || !/^[a-z][a-z0-9-]*$/.test(t.kind) || typeof t.title !== "string" || !t.title.trim()) errors.push(`timeline.tracks[${i}] is { kind, title }: kind in lowercase letters, digits and dashes, title what the person sees`)
+        else if (TRACKS.some((o) => o.kind === t.kind)) errors.push(`timeline.tracks[${i}]: raea has a track of kind "${t.kind}"`)
+        else (adds.tracks ??= []).push({ kind: t.kind, title: t.title, ...(t.under === true && { under: true }) })
+      }
+  }
   return { adds, errors }
 }
 
 /** Everything offered: raea's own, then each plugin's in order (a name a plugin before it took stays that one's). */
-export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[] } {
-  const eases = { ...EASES }, curves = { ...CURVES }, transitions = [...TRANSITIONS]
+export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[] } {
+  const eases = { ...EASES }, curves = { ...CURVES }, transitions = [...TRANSITIONS], tracks = [...TRACKS]
   for (const p of plugins) {
     for (const [n, e] of Object.entries(p.eases ?? {})) if (!(n in eases)) eases[n] = e
     for (const [n, c] of Object.entries(p.curves ?? {})) if (!(n in curves)) curves[n] = c
     for (const t of p.transitions ?? []) if (!transitions.some((o) => o.kind === t.kind)) transitions.push(t)
+    for (const t of p.tracks ?? [])
+      if (!tracks.some((o) => o.kind === t.kind)) {
+        tracks.push(t)
+        if (t.under) under.add(t.kind)
+      }
   }
-  return { eases, curves, transitions }
+  return { eases, curves, transitions, tracks }
 }

@@ -224,11 +224,28 @@ gen_files() {
 
 gen_sdk() {
   bun -e '
-    const root = process.argv[1], dir = root + "/sdk/raea/src"
-    const t = new Bun.Transpiler({ loader: "tsx" })
+    const root = process.argv[1], dir = root + "/sdk/raea/src", fs = require("fs"), path = require("path")
+    const tx = { ts: new Bun.Transpiler({ loader: "ts" }), tsx: new Bun.Transpiler({ loader: "tsx" }) }
+    // an entry that is `export * from "@raea/<package>"` (raea/editor, most of raea/audio) gives the names of the
+    // module it points at, found through the SDK'"'"'s own path map (sdk/tsconfig.base.json), and of what that re-exports
+    const paths = require(root + "/sdk/tsconfig.base.json").compilerOptions.paths
+    const find = (spec, from) => {
+      const at = spec.startsWith(".") ? [path.resolve(path.dirname(from), spec)] : Object.entries(paths).flatMap(([k, v]) =>
+        k === spec ? v.map((p) => path.resolve(root, "sdk", p)) : k.endsWith("/*") && spec.startsWith(k.slice(0, -1)) ? v.map((p) => path.resolve(root, "sdk", p.replace("*", spec.slice(k.length - 1)))) : [])
+      for (const c of at) for (const e of ["", ".ts", ".tsx", "/index.ts", "/index.tsx"]) if (fs.existsSync(c + e) && fs.statSync(c + e).isFile()) return c + e
+      console.error(`FAIL skills: ${path.relative(root, from)}:1: export * from "${spec}" leads to no file; fix: name it in sdk/tsconfig.base.json paths`)
+      process.exit(1)
+    }
+    const names = (file, seen) => {
+      if (seen.has(file)) return []
+      seen.add(file)
+      const src = fs.readFileSync(file, "utf8")
+      const own = tx[file.endsWith(".tsx") ? "tsx" : "ts"].scan(src).exports.filter((n) => n !== "default")
+      return [...own, ...[...src.matchAll(/^export \* from ["'"'"']([^"'"'"']+)["'"'"']/gm)].flatMap((m) => names(find(m[1], file), seen))]
+    }
     const skip = /(\.gen\.ts|^test\.tsx|^native-calls\.ts|^prelude\.ts|^pure\.ts|^frame-globals\.ts|^canvas2d\.ts|^page-layout\.ts|^dom-[a-z-]+\.ts)$/
     const files = [...new Bun.Glob("*.{ts,tsx}").scanSync(dir)].filter((f) => !skip.test(f)).sort()
-    const rows = files.map((f) => ({ entry: f.startsWith("index.") ? "raea" : "raea/" + f.replace(/\.tsx?$/, ""), file: "sdk/raea/src/" + f, names: t.scan(require("fs").readFileSync(dir + "/" + f, "utf8")).exports.filter((n) => n !== "default").sort() }))
+    const rows = files.map((f) => ({ entry: f.startsWith("index.") ? "raea" : "raea/" + f.replace(/\.tsx?$/, ""), file: "sdk/raea/src/" + f, names: [...new Set(names(dir + "/" + f, new Set()))].sort() }))
     console.log(JSON.stringify(rows.sort((a, b) => (a.entry === "raea" ? -1 : b.entry === "raea" ? 1 : a.entry.localeCompare(b.entry)))))
   ' "$ROOT" | jq -r --arg head "$HEAD_LINE" '
     $head, "",

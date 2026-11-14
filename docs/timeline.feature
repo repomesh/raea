@@ -95,7 +95,9 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                (waveform, level line, fades), TL8b's beats as ticks that edges snap to, each turned off by a
                click, TL8c (Record from the playhead, the picture playing; the recording a clip named by what was
                said, its file in the project's attachments), TL11a for easings, speed curves, transitions, effects, text styles, tools (presets put
-               on the picked clips) and snap grids as data,
+               on the picked clips) and snap grids as data (a clip let go 6 px past a plugin grid's mark lands on
+               it, under a browser test with the plugin installed; each e2e run now starts with no plugins
+               installed, since an earlier run's grids had stayed approved and snapped a run whose plugin had none),
                TL9d (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL12a-b,
                TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
@@ -123,13 +125,13 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once; beside a composition's timeline the
-               kept drafts say what they take and are cleared by a click
+               kept drafts say what they take and are cleared by a click. Drafts and a scene's kept frames are
+               drawn smaller than they ship and laid out as they ship (raea's <Composition edit={{ scale }}>, the
+               long side at 960 px; docs/lightspeed.feature PF4): a ray-traced 1080p shot's draft 2.75 s at full
+               size, 1.7 s scaled
     not built  TL13a's drag at the window's rate with 400 clips (measured below: Chrome keeps it, raea's window
-               draws 35 to 37 frames a second, and what is left is the window's own frame after a change). A
-               plugin's snap grid is checked as data and added to what edges snap to, but a snap to one isn't
-               under a browser test (its effect, text style and tool are, with the plugin installed and approved).
-               The skills guide's note
-               on an item's `timeline` field waits for PR #19 to merge
+               draws 35 to 37 frames a second, and what is left is the window's own frame after a change). The
+               skills guide's note on an item's `timeline` field waits for PR #19 to merge
 
   Background:
     Given the SDK is sdk/timeline in raea, the app's side is raea-feed src/detail (timeline, strip, blocks), the

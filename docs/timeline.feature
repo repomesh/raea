@@ -78,7 +78,7 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 20 browser
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 21 browser
   tests in Chrome; of the 19 that can run in a headless raea window (all but the voice test, which there would ask
   for this Mac's microphone) 16 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
   effects, groups and compounds; the other three stop at the runner (a route answered late, a reload, a posted item):
@@ -87,8 +87,9 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,
                rotate and crop shown on the player at once, as are a clip's keyed scale, place, turn and opacity),
                TL3i, TL4a-c, TL5a-c, TL6a-b, TL7a, TL7b for raea's ten effects (an effect is a clip of its own,
-               shown on the player where it is on), TL7c (text added with T, renamed by a double-click, a caption split
-               at the caret with Enter), a plugin's effects as data (timeline.effects in its manifest: parts
+               shown on the player where it is on), TL7c (text added with T or in a style from the bar, drawn over a
+               film where it is on, renamed by a double-click, a caption split at the caret with Enter; raea's
+               four text styles and a plugin's, as data), a plugin's effects as data (timeline.effects in its manifest: parts
                of CSS filter functions, drawn by <Effect parts> and by the preview alike), TL8a
                (waveform, level line, fades), TL8b's beats as ticks that edges snap to, each turned off by a
                click, TL8c (Record from the playhead, the picture playing; the recording a clip named by what was
@@ -112,12 +113,14 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
                again only the ranges it is on and an undo plays what it had; the store stays under a size
                (RAEA_SCENE_FRAMES_LIMIT, 1 GiB), the least recently played going first; the scene's timeline
                shows what is kept, and Play runs it over the stage from the scene's own camera, handing back to
-               the live stage where nothing is kept (seen in a headless raea window on the real host: the sample
-               room drawn, kept, and played at its own rate)
+               the live stage where nothing is kept. Seen in a headless raea window on the real host: the sample
+               room drawn, kept, and played at its own rate; a 9 s copy of it opened again with every range
+               kept at once (0.5 s); and a sequence dragged across two of its three ranges drew those two again
+               (9.4 s) and left every kept file as it was
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
-    not built  text styles a plugin adds, TL11a's tools and snapping targets, TL13 in a headless raea
+    not built  TL11a's tools and snapping targets, TL13 in a headless raea
                window (measured in Chrome so far, below). The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 

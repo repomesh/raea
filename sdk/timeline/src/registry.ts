@@ -30,6 +30,35 @@ export interface TrackKindInfo {
   under?: boolean
 }
 
+/** A way words are put on the picture (TL7c): where they stand, and how they are drawn (CSS, as React writes it). */
+export interface TextStyle {
+  kind: string
+  title: string
+  place: "top" | "center" | "bottom"
+  style: Record<string, string | number>
+}
+/** The CSS a text style may set: type and colour, nothing that lays the frame out. */
+export const TEXT_PROPS = ["color", "fontSize", "fontWeight", "fontFamily", "fontStyle", "letterSpacing", "lineHeight", "textTransform", "textShadow", "background", "padding", "borderRadius", "opacity"]
+/** raea's own text styles. Sizes are the composition's pixels (a 1080-line frame). */
+export const TEXTS: TextStyle[] = [
+  { kind: "title", title: "Title", place: "bottom", style: { color: "white", fontSize: 72, fontWeight: 700, textShadow: "0 2px 16px rgba(0, 0, 0, 0.6)" } },
+  { kind: "headline", title: "Headline", place: "center", style: { color: "white", fontSize: 120, fontWeight: 800, letterSpacing: "-0.02em", textShadow: "0 4px 24px rgba(0, 0, 0, 0.5)" } },
+  { kind: "caption", title: "Caption", place: "bottom", style: { color: "white", fontSize: 44, fontWeight: 600, background: "rgba(0, 0, 0, 0.6)", padding: "8px 18px", borderRadius: 10 } },
+  { kind: "label", title: "Label", place: "top", style: { color: "white", fontSize: 36, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", textShadow: "0 2px 10px rgba(0, 0, 0, 0.6)" } },
+]
+/** Why `t` isn't a text style, or undefined when it is. */
+export function textStyleError(t: unknown): string | undefined {
+  const x = t as Partial<TextStyle> | null
+  if (!x || typeof x.kind !== "string" || !/^[a-z][a-z0-9-]*$/.test(x.kind) || typeof x.title !== "string" || !x.title.trim()) return "is { kind, title, place, style }: kind in lowercase letters, digits and dashes, title what the person sees"
+  if (x.place !== "top" && x.place !== "center" && x.place !== "bottom") return "place is top, center or bottom"
+  if (!x.style || typeof x.style !== "object" || Array.isArray(x.style)) return "style is an object of CSS properties"
+  for (const [k, v] of Object.entries(x.style)) {
+    if (!TEXT_PROPS.includes(k)) return `style.${k}: a text style sets ${TEXT_PROPS.join(", ")}`
+    if (!(typeof v === "number" ? Number.isFinite(v) : typeof v === "string" && v.length <= 120 && !/[{}<>;]|url\(|expression/i.test(v))) return `style.${k} is a number or a plain CSS value`
+  }
+  return undefined
+}
+
 /** What one plugin adds. */
 export interface Adds {
   eases?: Record<string, Ease>
@@ -39,6 +68,8 @@ export interface Adds {
   tracks?: TrackKindInfo[]
   /** effects of its own (TL7b, TL11a), each drawn by its parts: CSS filter functions from amount 0 to amount 1 */
   effects?: EffectInfo[]
+  /** text styles of its own (TL7c, TL11a) */
+  texts?: TextStyle[]
 }
 
 /** raea's own kinds of track, in the order they stack (TL1a). */
@@ -113,23 +144,35 @@ export function readAdds(raw: unknown): { adds: Adds; errors: string[] } {
         else (adds.effects ??= []).push({ kind: e.kind, title: e.title, parts: e.parts! })
       }
   }
+  if (r.texts !== undefined) {
+    if (!Array.isArray(r.texts)) errors.push("timeline.texts is a list of { kind, title, place, style }")
+    else
+      for (const [i, x] of r.texts.entries()) {
+        const why = textStyleError(x)
+        if (why) errors.push(`timeline.texts[${i}] ${why}`)
+        else if (TEXTS.some((o) => o.kind === (x as TextStyle).kind)) errors.push(`timeline.texts[${i}]: raea has a text style "${(x as TextStyle).kind}"`)
+        else (adds.texts ??= []).push(x as TextStyle)
+      }
+  }
   return { adds, errors }
 }
 
 /** Everything offered: raea's own, then each plugin's in order (a name a plugin before it took stays that one's). */
-export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[]; /** the effects a clip of its own puts on the picture (TL7b) */ effects: EffectInfo[] } {
+export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[]; /** the effects a clip of its own puts on the picture (TL7b) */ effects: EffectInfo[]; /** the ways words are put on the picture (TL7c) */ texts: TextStyle[] } {
   const eases = { ...EASES }, curves = { ...CURVES }, transitions = [...TRANSITIONS], tracks = [...TRACKS]
   const effects: EffectInfo[] = EFFECTS.map(({ kind, title }) => ({ kind, title }))
+  const texts = [...TEXTS]
   for (const p of plugins) {
     for (const [n, e] of Object.entries(p.eases ?? {})) if (!(n in eases)) eases[n] = e
     for (const [n, c] of Object.entries(p.curves ?? {})) if (!(n in curves)) curves[n] = c
     for (const t of p.transitions ?? []) if (!transitions.some((o) => o.kind === t.kind)) transitions.push(t)
     for (const e of p.effects ?? []) if (!effects.some((o) => o.kind === e.kind)) effects.push(e)
+    for (const x of p.texts ?? []) if (!texts.some((o) => o.kind === x.kind)) texts.push(x)
     for (const t of p.tracks ?? [])
       if (!tracks.some((o) => o.kind === t.kind)) {
         tracks.push(t)
         if (t.under) under.add(t.kind)
       }
   }
-  return { eases, curves, transitions, tracks, effects }
+  return { eases, curves, transitions, tracks, effects, texts }
 }

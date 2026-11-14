@@ -4,7 +4,18 @@
 // every operation is a code edit of its own (edits.ts).
 import { type Clip, type Ease, empty, end, find, type Frames, type Key, type Timeline, type Track } from "./model"
 import { apply, type Op } from "./ops"
-import { EFFECTS, type EffectPart } from "./registry"
+import { EFFECTS, type EffectPart, type TextStyle, textStyleError } from "./registry"
+
+/** A text clip's style, kept in its props as JSON: read back when it is well formed. */
+export function textStyleOf(v: unknown): TextStyle | undefined {
+  if (typeof v !== "string") return undefined
+  try {
+    const t = JSON.parse(v) as unknown
+    return textStyleError(t) ? undefined : (t as TextStyle)
+  } catch {
+    return undefined
+  }
+}
 import { effectPartsError } from "../../video/src/effects"
 
 /** An effect clip's parts, kept in its props as JSON: read back when they are well formed. */
@@ -78,7 +89,7 @@ export type SeqEdit =
   /** a text sequence's words (TL7c) */
   | { op: "words"; i: number; text: string }
   /** words put on the picture from `at` for `frames`: a new sequence after the composition's last (TL7c) */
-  | { op: "text"; at: number; frames: number; text: string }
+  | { op: "text"; at: number; frames: number; text: string; /** how the words are drawn: a text style (registry.ts), raea's title when none */ style?: TextStyle }
   /** an effect put on the picture from `at` for `frames`: a new sequence holding an <Effect>, after the composition's last (TL7b) */
   | { op: "effect"; at: number; frames: number; kind: string; amount: number; /** a plugin's effect: the parts that draw it */ parts?: EffectPart[] }
   /** a recording put on the timeline from `at` for `frames` (TL8b): a new sequence holding an <Audio> of the file */
@@ -292,7 +303,8 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       if (op.clip.kind === "audio" && typeof op.clip.props?.file === "string" && op.clip.props.file) return [{ op: "voice", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), file: op.clip.props.file }]
       // words put on the picture: a new sequence of its own
       if (op.clip.kind !== "text") return { why: "only words, effects and recordings are added to a composition here: footage and sound are its code's to place" }
-      return [{ op: "text", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), text: (op.clip.name ?? "Text").trim() || "Text" }]
+      const style = textStyleOf(op.clip.props?.style)
+      return [{ op: "text", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), text: (op.clip.name ?? "Text").trim() || "Text", ...(style && { style }) }]
     }
     default:
       return { why: `the composition's sequences don't take "${op.op}" yet` }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { CURVES, EASES, palette, readAdds, TRANSITIONS } from "../src"
+import { CURVES, EASES, palette, readAdds, seqEdits, fromSequences, TEXTS, TRANSITIONS } from "../src"
 
 describe("TL11a: a plugin adds easings, speed curves and transitions", () => {
   const raw = {
@@ -56,5 +56,18 @@ describe("TL11a: a plugin's effects", () => {
     const all = palette([adds]).effects
     expect(all[all.length - 1]).toEqual(adds.effects![0])
     expect(all.length).toBe(11)
+  })
+})
+
+describe("TL7c, TL11a: text styles", () => {
+  test("raea's own, and a plugin's checked: type and colour only, nothing that reads as code", () => {
+    const neon = { kind: "neon", title: "Neon", place: "center", style: { color: "#39ff14", fontSize: 96, textShadow: "0 0 24px #39ff14" } }
+    const { adds, errors } = readAdds({ texts: [neon, { ...neon, kind: "title" }, { ...neon, kind: "wide", style: { width: "100%" } }, { ...neon, kind: "sly", style: { background: "url(http://x)" } }, { ...neon, kind: "low", place: "left" }] })
+    expect(adds.texts).toEqual([neon])
+    expect(errors).toEqual(['timeline.texts[1]: raea has a text style "title"', expect.stringContaining("timeline.texts[2] style.width: a text style sets"), "timeline.texts[3] style.background is a number or a plain CSS value", "timeline.texts[4] place is top, center or bottom"])
+    expect(palette([adds]).texts.map((t) => t.kind)).toEqual([...TEXTS.map((t) => t.kind), "neon"])
+    // added to a composition, the words go with their style
+    const t = fromSequences([{ i: 0, name: "Sequence", label: "A", from: 0, to: 90, lane: 0 }], 30)
+    expect(seqEdits(t, { op: "add", kind: "text", clip: { id: "text-1", kind: "text", name: "Hi", props: { style: JSON.stringify(neon) }, start: 0, length: 60 } })).toEqual([{ op: "text", at: 0, frames: 60, text: "Hi", style: neon }])
   })
 })

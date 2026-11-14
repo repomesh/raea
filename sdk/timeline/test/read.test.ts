@@ -86,6 +86,11 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "add", kind: "effect", clip: { id: "new", kind: "effect", props: { effect: "sparkle" }, start: 30, length: 60 } })).toMatchObject({ why: expect.stringContaining('"sparkle" isn\'t one of them') })
     // moved and trimmed like any sequence
     expect(seqEdits(t, { op: "move", ids: ["seq-1"], by: 10 })).toEqual([{ op: "move", i: 1, from: 25, to: 70 }])
+    // a plugin's effect goes with the parts that draw it, and is read back with them
+    const parts = [["blur", 0, 6, "px"], ["saturate", 1, 1.6]]
+    expect(seqEdits(t, { op: "add", kind: "effect", clip: { id: "new", kind: "effect", name: "Dream", props: { effect: "dream", amount: 1, parts: JSON.stringify(parts) }, start: 0, length: 30 } })).toEqual([{ op: "effect", at: 0, frames: 30, kind: "dream", amount: 1, parts }])
+    const back = fromSequences([{ ...rows[2], effect: { kind: "dream", amount: 0.5, parts: parts as never } }], 30).tracks[0].clips[0]
+    expect([back.name, back.props]).toEqual(["dream", { effect: "dream", amount: 0.5, parts: JSON.stringify(parts) }])
   })
 
   test("a <Video> and an <Audio> are clips of their own under their sequence: their level is theirs, the rest the sequence's", () => {

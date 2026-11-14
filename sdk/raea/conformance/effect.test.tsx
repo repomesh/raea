@@ -1,6 +1,6 @@
 // <Effect>: a look on the picture under it for its part's frames (docs/timeline.feature TL7b).
 import { expect, test } from "bun:test";
-import { AbsoluteFill, Effect, EFFECTS, effectAt, effectFilter, Sequence } from "../src";
+import { AbsoluteFill, Effect, EFFECTS, effectAt, effectFilter, effectPartsError, partsFilter, Sequence } from "../src";
 import { renderFrame } from "../src/test";
 
 const base = { frame: 0, fps: 30, width: 1080, height: 1920, durationInFrames: 90 };
@@ -30,4 +30,15 @@ test("every kind gives a filter, none at amount 0 changes the picture's numbers,
   expect(effectFilter("nope")).toBeUndefined();
   expect(() => at(40, <Effect kind="nope" />)).toThrow(/kind is one of/);
   expect(() => at(40, <Effect kind="blur" amount={2} />)).toThrow(/amount/);
+});
+
+test("an effect of its own is its parts: CSS filter functions from amount 0 to amount 1", () => {
+  const dream = [["blur", 0, 6, "px"], ["saturate", 1, 1.6]] as [string, number, number, string?][];
+  expect(partsFilter(dream, 1)).toBe("blur(6px) saturate(1.6)");
+  expect(partsFilter(dream, 0)).toBe("blur(0px) saturate(1)");
+  expect(at(40, <Effect kind="dream" parts={dream} amount={0.5} />)).toContain("backdrop-filter:blur(3px) saturate(1.3)");
+  expect(effectPartsError(dream)).toBeUndefined();
+  expect(effectPartsError([["drop-shadow", 0, 1]])).toMatch(/function is one of/);
+  expect(effectPartsError([["blur", 0, 6, "em"]])).toMatch(/blur takes px/);
+  expect(() => at(40, <Effect kind="dream" parts={[["url", 0, 1]] as never} />)).toThrow(/function is one of/);
 });

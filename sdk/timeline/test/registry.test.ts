@@ -33,6 +33,28 @@ describe("TL11a: a plugin adds easings, speed curves and transitions", () => {
   test("with no plugin it is raea's own, and a manifest with no timeline adds nothing", () => {
     expect(palette().transitions).toEqual(TRANSITIONS)
     expect(readAdds(undefined)).toEqual({ adds: {}, errors: [] })
-    expect(readAdds([1]).errors).toEqual(["timeline is an object: { eases, curves, transitions }"])
+    expect(readAdds([1]).errors).toEqual(["timeline is an object: { eases, curves, transitions, tracks, effects }"])
+  })
+})
+
+describe("TL11a: a plugin's effects", () => {
+  test("are data: CSS filter functions from amount 0 to amount 1, checked, and offered after raea's own", () => {
+    const { adds, errors } = readAdds({
+      effects: [
+        { kind: "dream", title: "Dream", parts: [["blur", 0, 6, "px"], ["saturate", 1, 1.6]] },
+        { kind: "blur", title: "Mine", parts: [["blur", 0, 2, "px"]] },
+        { kind: "shadow", title: "Shadow", parts: [["drop-shadow", 0, 1]] },
+        { kind: "Bad Name", title: "x", parts: [["blur", 0, 2, "px"]] },
+      ],
+    })
+    expect(adds.effects).toEqual([{ kind: "dream", title: "Dream", parts: [["blur", 0, 6, "px"], ["saturate", 1, 1.6]] }])
+    expect(errors).toEqual([
+      'timeline.effects[1]: raea has an effect "blur"',
+      expect.stringContaining("timeline.effects[2] (shadow): a part's function is one of"),
+      "timeline.effects[3] is { kind, title, parts }: kind in lowercase letters, digits and dashes, title what the person sees",
+    ])
+    const all = palette([adds]).effects
+    expect(all[all.length - 1]).toEqual(adds.effects![0])
+    expect(all.length).toBe(11)
   })
 })

@@ -56,7 +56,7 @@ export {
 } from "@raea/video/registry";
 
 export { Effect, effectAt, type EffectProps } from "@raea/video/effect";
-export { EFFECTS, effectFilter, type EffectKind } from "@raea/video/effects";
+export { EFFECTS, EFFECT_FNS, effectFilter, effectPartsError, partsFilter, type EffectKind, type EffectPart } from "@raea/video/effects";
 export { Nudge, type NudgeProps } from "@raea/video/nudge";
 export { speedLength, speedPoints, speedSource, type SpeedPoint } from "@raea/video/speed";
 export { Transition, type TransitionProps, type TransitionEdge, type TransitionKind } from "@raea/video/transition";

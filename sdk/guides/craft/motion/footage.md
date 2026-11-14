@@ -36,6 +36,9 @@
   Kinds: `blur`, `mono` (black and white), `sepia`, `vivid`, `faded`, `contrast`, `bright`, `dark`, `invert`, `hue`.
   `amount` (0 to 1) says how much; `in` and `out` are the frames it takes to come on and go off. The feed's timeline
   shows such a sequence as an effect clip, so the person can move, trim or retune it there.
+  An effect of your own is its `parts`, CSS filter functions from amount 0 to amount 1:
+  `<Effect kind="dream" parts={[["blur", 0, 6, "px"], ["saturate", 1, 1.6]]} />` (blur, brightness, contrast,
+  grayscale, hue-rotate, invert, saturate, sepia).
 - Use `<Img src>` for stills. The frame waits until the image has loaded. An image whose file isn't there fails the
   render with "missing image: PATH"; a plain App prints that line and draws nothing.
 

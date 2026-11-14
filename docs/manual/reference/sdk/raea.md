@@ -38,7 +38,7 @@ See [Your first video](../../start/first-video.md) for the whole loop, and
 import { AbsoluteFill, ACTION_KEY, actionsIn, Animate } from "raea"
 ```
 
-`raea` exports 20 components, 8 hooks, 60 functions, 10 values, 97 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
+`raea` exports 20 components, 8 hooks, 62 functions, 11 values, 98 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
 
 ## Components
 
@@ -116,7 +116,8 @@ The picture under it, through the effect, for as long as its <Sequence> runs.
 
 | Prop | Type | What it does |
 | --- | --- | --- |
-| `kind` (required) | `string` | which effect: blur, mono, sepia, vivid, faded, contrast, bright, dark, invert or hue |
+| `kind` (required) | `string` | which effect: blur, mono, sepia, vivid, faded, contrast, bright, dark, invert or hue; with `parts`, its own name |
+| `parts` | `EffectPart[]` | an effect of its own, as CSS filter functions (a plugin's): each [function, value at amount 0, value at amount 1, unit], such as [["blur", 0, 6, "px"], ["saturate", 1, 1.6]] |
 | `amount` | `number` | how much of it, from 0 (none) to 1 (all, the default) |
 | `in` | `number` | frames it takes to come on at its part's start (0: on at once) |
 | `out` | `number` | frames it takes to go off by its part's end (0: off at once) |
@@ -437,6 +438,14 @@ The CSS filter of `kind` at `amount` (0 to 1, clamped); undefined for a kind rae
 function effectFilter(kind: string, amount?: number): string | undefined
 ```
 
+### `effectPartsError`
+
+Why `parts` isn't an effect's parts, or undefined when it is.
+
+```ts
+function effectPartsError(parts: unknown): string | undefined
+```
+
 ### `fade`
 
 opacity 0 to 1 over `frames` (6).
@@ -583,6 +592,14 @@ Every step at once.
 
 ```ts
 function parallel(...steps: Step[]): Group
+```
+
+### `partsFilter`
+
+The CSS filter of an effect given as parts, at `amount` (0 to 1, clamped).
+
+```ts
+function partsFilter(parts: EffectPart[], amount?: number): string
 ```
 
 ### `pop`
@@ -893,6 +910,10 @@ turn one round. Pass one as `interpolate`'s `easing`.
 
 Used in: [manual: turntable](https://github.com/shinyobjectz/raea/blob/main/docs/manual/examples/turntable.tsx).
 
+### `EFFECT_FNS`
+
+The filter functions a part may name, each with the units it takes.
+
 ### `EFFECTS`
 
 ### `FEED_KEY`
@@ -1147,6 +1168,15 @@ a split, a cut word or a moved span is a change to this list; the length becomes
 | `kind` (required) | `string` | its name in the composition's code: <Effect kind> |
 | `title` (required) | `string` | what the person sees |
 | `filter` (required) | `(amount: number) => string` | the CSS filter at `amount` |
+
+### `EffectPart`
+
+An effect as data: each part one CSS filter function, its value going
+from `from` (amount 0, where it changes nothing) to `to` (amount 1), with its unit: ["blur", 0, 6, "px"].
+
+```ts
+type EffectPart = [fn: string, from: number, to: number, unit?: string]
+```
 
 ### `EffectProps`
 

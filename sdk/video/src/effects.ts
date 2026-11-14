@@ -25,6 +25,39 @@ export const EFFECTS: EffectKind[] = [
   { kind: "hue", title: "Hue shift", filter: (a) => `hue-rotate(${n(a * 180)}deg)` },
 ];
 
+/** An effect as data (a plugin's, docs/timeline.feature TL11a): each part one CSS filter function, its value going
+ *  from `from` (amount 0, where it changes nothing) to `to` (amount 1), with its unit: ["blur", 0, 6, "px"]. */
+export type EffectPart = [fn: string, from: number, to: number, unit?: string];
+
+/** The filter functions a part may name, each with the units it takes. */
+export const EFFECT_FNS: Record<string, string[]> = {
+  blur: ["px"],
+  brightness: [""],
+  contrast: [""],
+  grayscale: [""],
+  "hue-rotate": ["deg"],
+  invert: [""],
+  saturate: [""],
+  sepia: [""],
+};
+
+/** Why `parts` isn't an effect's parts, or undefined when it is. */
+export function effectPartsError(parts: unknown): string | undefined {
+  if (!Array.isArray(parts) || !parts.length || parts.length > 8) return "parts is one to eight [function, from, to, unit] entries";
+  for (const p of parts) {
+    if (!Array.isArray(p) || typeof p[0] !== "string" || !(p[0] in EFFECT_FNS)) return `a part's function is one of ${Object.keys(EFFECT_FNS).join(", ")}`;
+    if (typeof p[1] !== "number" || typeof p[2] !== "number" || !Number.isFinite(p[1]) || !Number.isFinite(p[2])) return `${p[0]}: from and to are numbers`;
+    if (!EFFECT_FNS[p[0]].includes(p[3] ?? "")) return `${p[0]} takes ${EFFECT_FNS[p[0]].map((u) => u || "no unit").join(" or ")}`;
+  }
+  return undefined;
+}
+
+/** The CSS filter of an effect given as parts, at `amount` (0 to 1, clamped). */
+export function partsFilter(parts: EffectPart[], amount = 1): string {
+  const a = Math.min(1, Math.max(0, amount));
+  return parts.map(([fn, from, to, unit = ""]) => `${fn}(${n(from + (to - from) * a)}${unit})`).join(" ");
+}
+
 /** The CSS filter of `kind` at `amount` (0 to 1, clamped); undefined for a kind raea doesn't draw. */
 export function effectFilter(kind: string, amount = 1): string | undefined {
   const e = EFFECTS.find((x) => x.kind === kind);

@@ -4,7 +4,19 @@
 // every operation is a code edit of its own (edits.ts).
 import { type Clip, type Ease, empty, end, find, type Frames, type Key, type Timeline, type Track } from "./model"
 import { apply, type Op } from "./ops"
-import { EFFECTS } from "./registry"
+import { EFFECTS, type EffectPart } from "./registry"
+import { effectPartsError } from "../../video/src/effects"
+
+/** An effect clip's parts, kept in its props as JSON: read back when they are well formed. */
+export function effectParts(v: unknown): EffectPart[] | undefined {
+  if (typeof v !== "string") return undefined
+  try {
+    const parts = JSON.parse(v) as unknown
+    return effectPartsError(parts) ? undefined : (parts as EffectPart[])
+  } catch {
+    return undefined
+  }
+}
 
 /** A <Sequence> as the host lists it: its place among the file's elements, its span in the composition's frames,
  *  the lane it sits on (nested ones below their parent, overlapping ones apart), and why it can't be rewritten. */
@@ -28,7 +40,7 @@ export interface SeqRow {
   /** the words it shows, when words are all it shows: a text clip, its words changed by renaming it (TL7c) */
   text?: string
   /** the effect it puts on the picture under it, when an <Effect> is all it holds: an effect clip (TL7b) */
-  effect?: { kind: string; amount: number }
+  effect?: { kind: string; amount: number; /** a plugin's: the parts that draw it */ parts?: EffectPart[] }
   /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
   in?: { kind: string; frames: number }
   out?: { kind: string; frames: number }
@@ -68,7 +80,7 @@ export type SeqEdit =
   /** words put on the picture from `at` for `frames`: a new sequence after the composition's last (TL7c) */
   | { op: "text"; at: number; frames: number; text: string }
   /** an effect put on the picture from `at` for `frames`: a new sequence holding an <Effect>, after the composition's last (TL7b) */
-  | { op: "effect"; at: number; frames: number; kind: string; amount: number }
+  | { op: "effect"; at: number; frames: number; kind: string; amount: number; /** a plugin's effect: the parts that draw it */ parts?: EffectPart[] }
   /** a recording put on the timeline from `at` for `frames` (TL8b): a new sequence holding an <Audio> of the file */
   | { op: "voice"; at: number; frames: number; file: string }
   /** an effect clip's kind or amount */
@@ -101,7 +113,7 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const media = rows.filter((r) => r.media)
   rows = rows.filter((r) => !r.media)
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.effect ? "effect" : r.text === undefined ? "sequence" : "text", name: r.effect ? (EFFECTS.find((e) => e.kind === r.effect!.kind)?.title ?? r.effect.kind) : (r.text ?? r.label ?? r.name), ...(r.effect && { props: { effect: r.effect.kind, amount: r.effect.amount } }), ...(r.look && Object.keys(r.look).length && { props: lookProps(r.look) }), start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.effect ? "effect" : r.text === undefined ? "sequence" : "text", name: r.effect ? (EFFECTS.find((e) => e.kind === r.effect!.kind)?.title ?? r.effect.kind) : (r.text ?? r.label ?? r.name), ...(r.effect && { props: { effect: r.effect.kind, amount: r.effect.amount, ...(r.effect.parts && { parts: JSON.stringify(r.effect.parts) }) } }), ...(r.look && Object.keys(r.look).length && { props: lookProps(r.look) }), start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -214,9 +226,9 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       const only = Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined)
       // an effect clip's kind and amount are its <Effect>'s
       if (only.length === 1 && only[0] === "props" && find(t, op.id)?.clip.kind === "effect") {
-        const { effect, amount, ...other } = op.set.props!
+        const { effect, amount, parts: _parts, ...other } = op.set.props!
         if (Object.keys(other).length) return { why: `an effect has a kind and an amount, not ${Object.keys(other).join(", ")}` }
-        if (effect !== undefined && !EFFECTS.some((e) => e.kind === effect)) return { why: `raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${String(effect)}" isn't one of them` }
+        if (effect !== undefined && !EFFECTS.some((e) => e.kind === effect)) return { why: `an effect clip changes to one of raea's own here (a plugin's is added from the bar): raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${String(effect)}" isn't one of them` }
         if (amount !== undefined && !(typeof amount === "number" && amount >= 0 && amount <= 1)) return { why: "an effect's amount runs from 0 to 1" }
         return each([op.id], (r) => ({ op: "fx", i: r.i, ...(effect !== undefined && { kind: String(effect) }), ...(amount !== undefined && { amount: Math.round((amount as number) * 1000) / 1000 }) }))
       }
@@ -269,9 +281,12 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       // an effect put on the picture: a new sequence of its own, holding an <Effect>
       if (op.clip.kind === "effect") {
         const kind = String(op.clip.props?.effect ?? "")
-        if (!EFFECTS.some((e) => e.kind === kind)) return { why: `raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${kind}" isn't one of them` }
+        // a plugin's effect carries the parts that draw it (as its clip does, in JSON)
+        const parts = effectParts(op.clip.props?.parts)
+        if (!parts && !EFFECTS.some((e) => e.kind === kind)) return { why: `raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${kind}" isn't one of them` }
+        if (!/^[a-z][a-z0-9-]*$/.test(kind)) return { why: "an effect's kind is a name in lowercase letters, digits and dashes" }
         const amount = typeof op.clip.props?.amount === "number" ? Math.min(1, Math.max(0, op.clip.props.amount)) : 1
-        return [{ op: "effect", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), kind, amount }]
+        return [{ op: "effect", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), kind, amount, ...(parts && { parts }) }]
       }
       // a recording made here (its file on this Mac): a new sequence of its own, holding an <Audio>
       if (op.clip.kind === "audio" && typeof op.clip.props?.file === "string" && op.clip.props.file) return [{ op: "voice", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), file: op.clip.props.file }]

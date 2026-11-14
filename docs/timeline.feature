@@ -78,20 +78,21 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 18 browser
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 19 browser
   tests in Chrome, 10 of them also passing in a headless raea window (the rest stop at helpers its runner lacks):
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
-               TL2a-e, TL3a-e, TL3g, TL3h (freeze and reverse played live from the film's own frames; mirror,
+               TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,
                rotate and crop shown on the player at once, as are a clip's keyed scale, place, turn and opacity),
                TL3i, TL4a-c, TL5a-c, TL6a-b, TL7a, TL7b for raea's ten effects (an effect is a clip of its own,
                shown on the player where it is on), TL7c (text added with T, renamed by a double-click), TL8a
                (waveform, level line, fades), TL8b's beats as ticks that edges snap to (none can be turned off
                yet), TL8c (Record from the playhead, the picture playing; the recording a clip named by what was
                said, its file in the project's attachments), TL11a for easings, speed curves, transitions and effects as data,
-               TL12a-b, TL14a-c
+               TL9d (an item's own timeline: an edit kept in the item's data, Send telling its agent), TL12a-b,
+               TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
                (TL5d), its still placement as its <Nudge>'s props, mirror and crop among them (TL3h), a speed or a
-               speed curve for a sequence that holds footage (TL6a-b), a transition on a cut
+               speed curve for a sequence that holds footage, split in two with it (TL6a-b), a transition on a cut
                (TL7a), an effect as a sequence holding an <Effect>, its kind and amount (TL7b), a sequence of
                words as a text clip, its words rewritten, words added as a new sequence (TL7c), a <Video>'s or an
                <Audio>'s level (TL8a), a recording as a sequence holding an <Audio> of its file (TL8c); each
@@ -111,8 +112,8 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
     decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
                composition's drafts are kept by their source, the least recently played going first under 1 GiB
                (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
-    not built  TL1d, TL3f, a split of a sequence under a speed curve, effects and text a plugin
-               adds, a caption split with Enter, TL9d, TL11a's tools and snapping targets, TL13's measurements. The skills guide's note
+    not built  TL1d, effects and text a plugin
+               adds, a caption split with Enter, TL11a's tools and snapping targets, TL13's measurements. The skills guide's note
                on an item's `timeline` field waits for PR #19 to merge
 
   Background:

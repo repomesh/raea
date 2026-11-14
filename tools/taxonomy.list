@@ -18,6 +18,7 @@ raea Composition     a composition declared in the root (id, size, fps, length),
 raea Series          shots one after another on the timeline
 raea Freeze          its children held at one frame
 raea Nudge           its child moved in front of its own transform
+raea Effect          a look (blur, black and white, sepia and more) on everything drawn under it, for its part's frames
 raea Transition      its child coming in over its part's first frames and going out over its last
 raea Overlay         children only in a render asked for that overlay
 raea Region          a box at a named band, clear of the face perception found

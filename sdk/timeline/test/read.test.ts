@@ -59,7 +59,20 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "set", id: "seq-1", set: { name: " " } })).toEqual({ why: "a text clip says something: delete it to take its words off" })
     expect(seqEdits(t, { op: "set", id: "seq-0", set: { name: "x" } })).toEqual({ why: "a sequence's name is its own code's: only a text clip's words change here" })
     expect(seqEdits(t, { op: "add", kind: "text", clip: { id: "new", kind: "text", name: "Sale ends Friday", start: 45, length: 90 } })).toEqual([{ op: "text", at: 45, frames: 90, text: "Sale ends Friday" }])
-    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words are added to a composition here: footage and sound are its code's to place" })
+    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words and effects are added to a composition here: footage and sound are its code's to place" })
+  })
+
+  test("a sequence holding an <Effect> is an effect clip: its kind and amount set, and one added is a new sequence (TL7b)", () => {
+    const t = fromSequences([{ ...rows[0] }, { ...rows[2], effect: { kind: "mono", amount: 0.5 } }], 30)
+    const fx = t.tracks.flatMap((k) => k.clips).find((c) => c.id === "seq-1")!
+    expect([fx.kind, fx.name, fx.props]).toEqual(["effect", "Black and white", { effect: "mono", amount: 0.5 }])
+    expect(seqEdits(t, { op: "set", id: "seq-1", set: { props: { amount: 0.8 } } })).toEqual([{ op: "fx", i: 1, amount: 0.8 }])
+    expect(seqEdits(t, { op: "set", id: "seq-1", set: { props: { effect: "sepia" } } })).toEqual([{ op: "fx", i: 1, kind: "sepia" }])
+    expect(seqEdits(t, { op: "set", id: "seq-1", set: { props: { amount: 3 } } })).toEqual({ why: "an effect's amount runs from 0 to 1" })
+    expect(seqEdits(t, { op: "add", kind: "effect", clip: { id: "new", kind: "effect", name: "Blur", props: { effect: "blur", amount: 0.4 }, start: 30, length: 60 } })).toEqual([{ op: "effect", at: 30, frames: 60, kind: "blur", amount: 0.4 }])
+    expect(seqEdits(t, { op: "add", kind: "effect", clip: { id: "new", kind: "effect", props: { effect: "sparkle" }, start: 30, length: 60 } })).toMatchObject({ why: expect.stringContaining('"sparkle" isn\'t one of them') })
+    // moved and trimmed like any sequence
+    expect(seqEdits(t, { op: "move", ids: ["seq-1"], by: 10 })).toEqual([{ op: "move", i: 1, from: 25, to: 70 }])
   })
 
   test("a <Video> and an <Audio> are clips of their own under their sequence: their level is theirs, the rest the sequence's", () => {

@@ -38,7 +38,7 @@ See [Your first video](../../start/first-video.md) for the whole loop, and
 import { AbsoluteFill, ACTION_KEY, actionsIn, Animate } from "raea"
 ```
 
-`raea` exports 19 components, 8 hooks, 58 functions, 9 values, 95 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
+`raea` exports 20 components, 8 hooks, 60 functions, 10 values, 97 types. Source: [sdk/raea/src/index.tsx](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/src/index.tsx).
 
 ## Components
 
@@ -109,6 +109,17 @@ Declares a composition inside the root. It draws nothing itself; a renderer find
 | `edit` | `Edit` | a hand edit laid over the composition (docs/craft-system.md, L): written back by the app's timeline |
 
 Used in: [ui/images/image_node](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/images/image_node.tsx), [ui/images/ui_texture_slice_flip_and_tile](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/images/ui_texture_slice_flip_and_tile.tsx), [ui/images/image_node_resizing](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/images/image_node_resizing.tsx), [ui/images/ui_texture_atlas_slice](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/images/ui_texture_atlas_slice.tsx), [ui/images/ui_texture_slice](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/images/ui_texture_slice.tsx), [ui/images/ui_texture_atlas](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/images/ui_texture_atlas.tsx), [ui/layout/grid](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/layout/grid.tsx), [ui/layout/ghost_nodes](https://github.com/shinyobjectz/raea/blob/main/sdk/raea/bench/bevy-parity/ui/layout/ghost_nodes.tsx), and 152 more.
+
+### `Effect`
+
+The picture under it, through the effect, for as long as its <Sequence> runs.
+
+| Prop | Type | What it does |
+| --- | --- | --- |
+| `kind` (required) | `string` | which effect: blur, mono, sepia, vivid, faded, contrast, bright, dark, invert or hue |
+| `amount` | `number` | how much of it, from 0 (none) to 1 (all, the default) |
+| `in` | `number` | frames it takes to come on at its part's start (0: on at once) |
+| `out` | `number` | frames it takes to go off by its part's end (0: off at once) |
 
 ### `Freeze`
 
@@ -406,6 +417,22 @@ Hold the frame until `continueRender(handle)`. `label` names it if it's still op
 
 ```ts
 function delayRender(label?: string, options?: { timeoutInMilliseconds?: number; } | undefined): number
+```
+
+### `effectAt`
+
+How much of the effect is on at `frame` of a part `duration` frames long, coming on over `enter` and off over `exit`.
+
+```ts
+function effectAt(frame: number, duration: number, enter?: number, exit?: number): number
+```
+
+### `effectFilter`
+
+The CSS filter of `kind` at `amount` (0 to 1, clamped); undefined for a kind raea doesn't draw.
+
+```ts
+function effectFilter(kind: string, amount?: number): string | undefined
 ```
 
 ### `fade`
@@ -864,6 +891,8 @@ turn one round. Pass one as `interpolate`'s `easing`.
 
 Used in: [manual: turntable](https://github.com/shinyobjectz/raea/blob/main/docs/manual/examples/turntable.tsx).
 
+### `EFFECTS`
+
 ### `FEED_KEY`
 
 The prefix of the keys the app hands every panel for what it knows: `feed:transcript` (the conversation's last lines,
@@ -1108,6 +1137,18 @@ a split, a cut word or a moved span is a change to this list; the length becomes
 | Field | Type | What it is |
 | --- | --- | --- |
 | `segments` | `readonly (readonly [number, number])[]` | the composition's own frame ranges, [from, to), played one after another |
+
+### `EffectKind`
+
+| Field | Type | What it is |
+| --- | --- | --- |
+| `kind` (required) | `string` | its name in the composition's code: <Effect kind> |
+| `title` (required) | `string` | what the person sees |
+| `filter` (required) | `(amount: number) => string` | the CSS filter at `amount` |
+
+### `EffectProps`
+
+The props of [`Effect`](#effect), tabled there.
 
 ### `ExtrapolateMode`
 

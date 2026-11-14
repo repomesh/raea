@@ -4,6 +4,7 @@
 // every operation is a code edit of its own (edits.ts).
 import { type Clip, type Ease, empty, end, find, type Frames, type Key, type Timeline, type Track } from "./model"
 import { apply, type Op } from "./ops"
+import { EFFECTS } from "./registry"
 
 /** A <Sequence> as the host lists it: its place among the file's elements, its span in the composition's frames,
  *  the lane it sits on (nested ones below their parent, overlapping ones apart), and why it can't be rewritten. */
@@ -24,6 +25,8 @@ export interface SeqRow {
   shows?: number
   /** the words it shows, when words are all it shows: a text clip, its words changed by renaming it (TL7c) */
   text?: string
+  /** the effect it puts on the picture under it, when an <Effect> is all it holds: an effect clip (TL7b) */
+  effect?: { kind: string; amount: number }
   /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
   in?: { kind: string; frames: number }
   out?: { kind: string; frames: number }
@@ -49,6 +52,10 @@ export type SeqEdit =
   | { op: "words"; i: number; text: string }
   /** words put on the picture from `at` for `frames`: a new sequence after the composition's last (TL7c) */
   | { op: "text"; at: number; frames: number; text: string }
+  /** an effect put on the picture from `at` for `frames`: a new sequence holding an <Effect>, after the composition's last (TL7b) */
+  | { op: "effect"; at: number; frames: number; kind: string; amount: number }
+  /** an effect clip's kind or amount */
+  | { op: "fx"; i: number; kind?: string; amount?: number }
   /** how it comes in ("in") or goes out ("out"): its <Transition>'s edge set, or taken off with 0 frames (TL7a) */
   | { op: "edge"; i: number; side: "in" | "out"; kind: string; frames: number }
   /** a <Video>'s or an <Audio>'s own level (TL8a) */
@@ -71,7 +78,7 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const media = rows.filter((r) => r.media)
   rows = rows.filter((r) => !r.media)
   const lanes = [...new Set(rows.map((r) => r.lane))].sort((a, b) => a - b)
-  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.text === undefined ? "sequence" : "text", name: r.text ?? r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
+  const clipsOf = (lane: number): Clip[] => rows.filter((r) => r.lane === lane).sort((a, b) => a.from - b.from).map((r) => ({ id: seqId(r.i), kind: r.effect ? "effect" : r.text === undefined ? "sequence" : "text", name: r.effect ? (EFFECTS.find((e) => e.kind === r.effect!.kind)?.title ?? r.effect.kind) : (r.text ?? r.label ?? r.name), ...(r.effect && { props: { effect: r.effect.kind, amount: r.effect.amount } }), start: r.from, length: Math.max(1, r.to - r.from), ...(r.locked && { locked: r.locked }), ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.curve?.length && r.shows && { curve: r.curve.map(([at, speed]) => ({ at, speed })), shows: r.shows }), ...(r.keys && Object.keys(r.keys).length && { keys: Object.fromEntries(Object.entries(r.keys).map(([p, ks]) => [p, ks.map(([at, value, ease]): Key => ({ at, value, ...(ease !== undefined && { ease }) }))])) }) }))
   const first = lanes.length ? clipsOf(lanes[0]) : []
   const gapless = first.length > 0 && first.every((c, n) => c.start === (n ? end(first[n - 1]) : 0))
   const tracks: Track[] = lanes.map((lane, n) => ({ id: n === 0 && gapless ? "main" : `overlay-${lane}`, kind: n === 0 && gapless ? "main" : "overlay", clips: clipsOf(lane) }))
@@ -182,6 +189,14 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
     case "set": {
       // a speed or a speed curve is the footage's rate; anything else a sequence has is its own code's
       const only = Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined)
+      // an effect clip's kind and amount are its <Effect>'s
+      if (only.length === 1 && only[0] === "props" && find(t, op.id)?.clip.kind === "effect") {
+        const { effect, amount, ...other } = op.set.props!
+        if (Object.keys(other).length) return { why: `an effect has a kind and an amount, not ${Object.keys(other).join(", ")}` }
+        if (effect !== undefined && !EFFECTS.some((e) => e.kind === effect)) return { why: `raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${String(effect)}" isn't one of them` }
+        if (amount !== undefined && !(typeof amount === "number" && amount >= 0 && amount <= 1)) return { why: "an effect's amount runs from 0 to 1" }
+        return each([op.id], (r) => ({ op: "fx", i: r.i, ...(effect !== undefined && { kind: String(effect) }), ...(amount !== undefined && { amount: Math.round((amount as number) * 1000) / 1000 }) }))
+      }
       // a text clip's name is its words
       if (only.length === 1 && only[0] === "name") {
         if (find(t, op.id)?.clip.kind !== "text") return { why: "a sequence's name is its own code's: only a text clip's words change here" }
@@ -215,8 +230,15 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
       return [{ op: "keys", i: r.i, keys: Object.fromEntries(Object.entries(keys).filter(([p]) => KEYED.includes(p)).map(([p, ks]) => [p, ks.map((k): [number, number, Ease?] => (k.ease === undefined || k.ease === "linear" ? [k.at, k.value as number] : [k.at, k.value as number, k.ease]))])) }]
     }
     case "add": {
+      // an effect put on the picture: a new sequence of its own, holding an <Effect>
+      if (op.clip.kind === "effect") {
+        const kind = String(op.clip.props?.effect ?? "")
+        if (!EFFECTS.some((e) => e.kind === kind)) return { why: `raea draws ${EFFECTS.map((e) => e.kind).join(", ")}: "${kind}" isn't one of them` }
+        const amount = typeof op.clip.props?.amount === "number" ? Math.min(1, Math.max(0, op.clip.props.amount)) : 1
+        return [{ op: "effect", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), kind, amount }]
+      }
       // words put on the picture: a new sequence of its own
-      if (op.clip.kind !== "text") return { why: "only words are added to a composition here: footage and sound are its code's to place" }
+      if (op.clip.kind !== "text") return { why: "only words and effects are added to a composition here: footage and sound are its code's to place" }
       return [{ op: "text", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), text: (op.clip.name ?? "Text").trim() || "Text" }]
     }
     default:

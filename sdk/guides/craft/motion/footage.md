@@ -31,6 +31,11 @@
   line between points: `speedCurve={[[0, 1], [0.5, 4], [1, 1]]}` speeds up to 4x at the middle and back. The sound
   follows it. The clip then takes `speedLength(speedPoints("clip", curve), endAt - startFrom)` frames, so give its
   `<Sequence>` that `durationInFrames` (rounded).
+- For a look over a stretch of time, put an `<Effect kind="mono" />` in a `<Sequence>` of its own, written after
+  the parts it covers: it filters everything drawn before it for that sequence's frames, and draws nothing itself.
+  Kinds: `blur`, `mono` (black and white), `sepia`, `vivid`, `faded`, `contrast`, `bright`, `dark`, `invert`, `hue`.
+  `amount` (0 to 1) says how much; `in` and `out` are the frames it takes to come on and go off. The feed's timeline
+  shows such a sequence as an effect clip, so the person can move, trim or retune it there.
 - Use `<Img src>` for stills. The frame waits until the image has loaded. An image whose file isn't there fails the
   render with "missing image: PATH"; a plain App prints that line and draws nothing.
 

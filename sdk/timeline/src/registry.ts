@@ -4,6 +4,10 @@
 import { EASES } from "./keys"
 import { type Ease, type SpeedPoint, under } from "./model"
 import { CURVES, FASTEST, SLOWEST } from "./speed"
+// raea's effects (TL7b): the one table the engine's <Effect> draws from, so a preview here is what a render shows
+import { EFFECTS, effectFilter, type EffectKind } from "../../video/src/effects"
+
+export { EFFECTS, effectFilter, type EffectKind }
 
 export interface TransitionKind {
   /** the component's name in the composition's code */
@@ -92,7 +96,7 @@ export function readAdds(raw: unknown): { adds: Adds; errors: string[] } {
 }
 
 /** Everything offered: raea's own, then each plugin's in order (a name a plugin before it took stays that one's). */
-export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[] } {
+export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; curves: Record<string, SpeedPoint[]>; transitions: TransitionKind[]; tracks: TrackKindInfo[]; /** the effects a clip of its own puts on the picture (TL7b) */ effects: { kind: string; title: string }[] } {
   const eases = { ...EASES }, curves = { ...CURVES }, transitions = [...TRANSITIONS], tracks = [...TRACKS]
   for (const p of plugins) {
     for (const [n, e] of Object.entries(p.eases ?? {})) if (!(n in eases)) eases[n] = e
@@ -104,5 +108,5 @@ export function palette(plugins: Adds[] = []): { eases: Record<string, Ease>; cu
         if (t.under) under.add(t.kind)
       }
   }
-  return { eases, curves, transitions, tracks }
+  return { eases, curves, transitions, tracks, effects: EFFECTS.map(({ kind, title }) => ({ kind, title })) }
 }

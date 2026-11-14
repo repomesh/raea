@@ -11,6 +11,8 @@
     "./media": "./src/media.tsx",
     "./timeline": "./src/timeline.tsx",
     "./registry": "./src/registry.tsx",
+    "./effect": "./src/effect.tsx",
+    "./effects": "./src/effects.ts",
     "./nudge": "./src/nudge.tsx",
     "./speed": "./src/speed.ts",
     "./transition": "./src/transition.tsx",

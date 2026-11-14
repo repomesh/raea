@@ -39,6 +39,12 @@
   An effect of your own is its `parts`, CSS filter functions from amount 0 to amount 1:
   `<Effect kind="dream" parts={[["blur", 0, 6, "px"], ["saturate", 1, 1.6]]} />` (blur, brightness, contrast,
   grayscale, hue-rotate, invert, saturate, sepia).
+- To recut a composition as data rather than by hand, use `raea/editor`, the model behind the feed's timeline.
+  `fromRender({ frames, fps, cuts })` makes its scenes clips of a main track, `applyAll(t, ops)` makes the edits
+  (`split`, `move`, `trim`, `remove`) and hands back each one's inverse, so a change can be undone, and
+  `segmentsOf(t)` is the cut as `<Composition edit={{ segments }}>` takes it. The main track's magnet closes every
+  gap, as the feed's does. Segments say only which source frames play in which order: a speed or a freeze on a clip
+  is not in them. docs/manual/examples/edits.tsx builds a timeline, edits it and undoes it.
 - Use `<Img src>` for stills. The frame waits until the image has loaded. An image whose file isn't there fails the
   render with "missing image: PATH"; a plain App prints that line and draws nothing.
 

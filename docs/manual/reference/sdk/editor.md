@@ -1,11 +1,19 @@
 ---
 title: "raea/editor"
-summary: "the timeline the feed edits a film, a scene or a sound on, as data. Tracks, clips, keys and markers; every edit an operation with its inverse (apply); a composition's sequences read into it (sequenceRows) and the edits written back as SeqEdit; easings, speed curves, snapping, the frame store's keys and what a plugin adds. No React and no DOM: an agent's script, the app's host and a test use the same model the app's strip does."
+summary: "The timeline the feed edits a film, a scene or a sound on, as data: tracks, clips, keys and markers, every edit an operation with its inverse, a film's scenes read in (fromRender) and its cut read back out as segments (segmentsOf). No React and no DOM: an agent's script, the app's host and a test use the same model the app's timeline does."
 order: 48
 sources: ["sdk/raea/src/editor.ts"]
 ---
 
-the timeline the feed edits a film, a scene or a sound on, as data. Tracks, clips, keys and markers; every edit an operation with its inverse (apply); a composition's sequences read into it (sequenceRows) and the edits written back as SeqEdit; easings, speed curves, snapping, the frame store's keys and what a plugin adds. No React and no DOM: an agent's script, the app's host and a test use the same model the app's strip does.
+The timeline the feed edits a film, a scene or a sound on, as data. A `Timeline` holds tracks of clips in whole
+frames, with keys, markers and transitions; `apply` and `applyAll` make an edit and hand back its inverse, so every
+change can be undone; the main track's magnet, snapping and linkage behave as the feed's timeline does. A film's
+scenes are read in with `fromRender` and its cut read back out with `segmentsOf`, as a composition's
+`edit={{ segments }}` takes it; a composition's sequences are read in with `fromSequences`, and `seqEdits` says what
+an operation does to them. Easings, speed curves, snapping, the frame store's keys and what a plugin adds are here
+too. No React and no DOM: an agent's script, the app's host and a test use the same model the app's timeline does.
+See [the example](https://github.com/shinyobjectz/raea/blob/main/docs/manual/examples/edits.tsx) for a timeline
+built, edited and undone.
 
 <!-- generated:begin by tools/manual-ref/sdk.ts from the SDK's exports and doc comments; edit outside this block -->
 

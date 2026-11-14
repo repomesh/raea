@@ -88,6 +88,8 @@
       "@raea/audio/*": ["./audio/src/*"],
       "@raea/video": ["./video/src/index.ts"],
       "@raea/video/*": ["./video/src/*"],
+      "@raea/timeline": ["./timeline/src/index.ts"],
+      "@raea/timeline/*": ["./timeline/src/*"],
       "@raea/character": ["./character/src/index.ts"],
       "@raea/character/*": ["./character/src/*"],
       "@raea/asset": ["./asset/src/index.ts"],

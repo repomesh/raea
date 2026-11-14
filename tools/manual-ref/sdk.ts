@@ -24,7 +24,7 @@ const problems: string[] = []
 const GROUPS: [string, string, string[]][] = [
   ["Start here", "The composition, the app, and the specs and notes an agent writes.", ["raea", "app", "brief", "note"]],
   ["Time and motion", "Frames, animation, springs, states and input, and holding a frame until it's ready.", ["time", "animation", "math", "state", "input", "hold"]],
-  ["Video, sound and text", "Footage, pictures, sound, words and colour.", ["video", "audio", "text", "image", "asset", "color"]],
+  ["Video, sound and text", "Footage, pictures, sound, words and colour, and the timeline they are edited on.", ["video", "audio", "text", "image", "asset", "color", "editor"]],
   ["3D", "Bevy's 3D: cameras, lights, materials, meshes and the frame after it's drawn.", ["3d", "camera", "light", "pbr", "mesh", "transform", "post_process", "picking", "gizmos"]],
   ["2D and UI", "Sprites and flat shapes, bevy_ui and Bevy's widgets.", ["sprite", "ui", "feathers"]],
   ["Tools", "Checks, lints and a headless App you can drive.", ["check", "fingerprint", "dev_tools", "remote"]],

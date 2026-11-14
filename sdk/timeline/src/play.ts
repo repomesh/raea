@@ -8,7 +8,9 @@ import { played, sourceAt as curveAt } from "./speed"
 
 const main = (t: Timeline): Clip[] => (t.tracks.find((k) => k.kind === "main" && !k.hidden)?.clips ?? []).filter((c) => !c.off && c.in !== undefined).sort((a, b) => a.start - b.start)
 
+/** What the player shows at a frame of the edited timeline (TL10a). */
 export interface Showing {
+  /** the main track's clip there */
   clip: Clip
   /** the source frame to show */
   source: number

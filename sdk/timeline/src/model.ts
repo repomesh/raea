@@ -1,6 +1,7 @@
 // The timeline's model (docs/timeline.feature TL0). Time is whole frames (TL0a): a clip's start, length and trim, a
 // key and a marker are integers; seconds and timecodes are drawn from them, never the other way.
 
+/** A count of frames, always whole (TL0a). */
 export type Frames = number
 
 /** A track's kind, in the order they stack from the top (TL1a): effect, text, overlay, main, sound. A plugin adds
@@ -12,41 +13,58 @@ export const ORDER: TrackKind[] = ["effect", "text", "overlay", "main", "sound"]
  *  bezier's two handles [x1, y1, x2, y2] as CSS writes them (TL5c). */
 export type Ease = "linear" | "hold" | [number, number, number, number]
 
+/** A property's value: a number, a list of numbers (a colour, a point) or a string. */
 export type Value = number | number[] | string
 
 /** A property's value at a frame of its clip (frames from the clip's start), and how it leaves for the next key. */
 export interface Key {
+  /** the frame it is at, counted from its clip's start */
   at: Frames
+  /** the property's value there: a number, a list of them (a colour, a point) or a string */
   value: Value
+  /** how the value travels to the next key (linear when unset) */
   ease?: Ease
 }
 
 /** A point of a speed curve (TL6b): how fast the source plays at a place in it (0 its first frame shown, 1 its last). */
 export interface SpeedPoint {
+  /** where in the source, from 0 (its first frame shown) to 1 (its last) */
   at: number
+  /** how fast it plays there: 1 as recorded, 2 twice as fast, 0.5 half */
   speed: number
 }
 
+/** A mark at a frame (TL2e): a beat, a comment's time (TL12b) or one put there by hand. */
 export interface Marker {
+  /** its own id, unique on the timeline */
   id: string
+  /** its frame on the timeline (on a clip: from the clip's start) */
   at: Frames
+  /** what it says, shown on hover */
   name?: string
+  /** its colour, any CSS colour */
   color?: string
 }
 
+/** A span of something on a track: footage, a sound, words, a composition's sequence, an effect. */
 export interface Clip {
+  /** its own id, unique on the timeline */
   id: string
   /** what it is: "video", "audio", "text", "sequence", "component", "effect", a plugin's own */
   kind: string
+  /** what its head says (its file's or its sequence's name when unset) */
   name?: string
-  /** where it starts on the timeline, and for how long */
+  /** where it starts on the timeline */
   start: Frames
+  /** how long it lasts on the timeline */
   length: Frames
-  /** media: the first source frame it shows, and how many frames the source has (unset: no end to trim against) */
+  /** media: the first source frame it shows */
   in?: Frames
+  /** media: how many frames the source has (unset: no end to trim against) */
   source?: Frames
-  /** a constant speed (1 when unset), or a curve, which wins (TL6) */
+  /** a constant speed (1 when unset, TL6a) */
   speed?: number
+  /** a speed curve, which wins over `speed` (TL6b) */
   curve?: SpeedPoint[]
   /** under a curve: how many source frames the clip shows (its length is the time the curve takes over them) */
   shows?: Frames
@@ -60,12 +78,15 @@ export interface Clip {
   locked?: string
   /** clips with one group pick and move as one (TL3g) */
   group?: string
-  /** still values, and keyed ones (TL5): a keyed property's still value is ignored */
+  /** its still values by property (x, y, scale, rotate, opacity, text, a plugin's): a keyed one is ignored */
   props?: Record<string, Value | boolean>
+  /** its keys by property, in frame order (TL5) */
   keys?: Record<string, Key[]>
-  /** sound: its level (1 as recorded) and its fades' lengths (TL8a) */
+  /** sound: its level, 1 as recorded (TL8a) */
   volume?: number
+  /** sound: how long it fades in from its start */
   fadeIn?: Frames
+  /** sound: how long it fades out to its end */
   fadeOut?: Frames
   /** its element in the code (file:line:col, docs/editing.feature E2) */
   at?: string
@@ -76,35 +97,54 @@ export interface Clip {
   inside?: { kind: TrackKind; clip: Clip }[]
 }
 
+/** A row of clips that don't overlap, with its head's switches (TL1b). */
 export interface Track {
+  /** its own id, unique on the timeline */
   id: string
+  /** what it holds, which places it in the stack (TL1a) */
   kind: TrackKind
+  /** what its head says (its kind's title when unset) */
   name?: string
+  /** its clips can't be picked or changed */
   locked?: boolean
+  /** left out of the picture */
   hidden?: boolean
+  /** left out of the sound */
   muted?: boolean
   /** drawn this tall, in px (TL1c) */
   height?: number
+  /** its clips, in start order */
   clips: Clip[]
 }
 
 /** A transition on the cut between two clips that touch on one track (TL7a): the cut is the end of clip `after`,
  *  so it follows that cut wherever an edit moves it. */
 export interface Transition {
+  /** its own id, unique on the timeline */
   id: string
+  /** its kind: fade, slide, wipe, zoom or a plugin's (TRANSITIONS) */
   kind: string
+  /** the clip whose end is the cut it sits on */
   after: string
+  /** how long it takes, centred on the cut */
   length: Frames
 }
 
+/** A whole timeline: its tracks top to bottom, its marks, its transitions and its three switches. */
 export interface Timeline {
+  /** frames a second, which every Frames value counts in */
   fps: number
+  /** its tracks, top to bottom */
   tracks: Track[]
+  /** marks on the ruler (TL2e) */
   markers: Marker[]
+  /** transitions on cuts (TL7a) */
   transitions: Transition[]
-  /** the main track holds no gap (TL4a), edges snap (TL4b), what sits over a main clip follows it (TL4c) */
+  /** the main track holds no gap (P, TL4a) */
   magnet: boolean
+  /** edges snap to cuts, the playhead, marks and beats (N, TL4b) */
   snapping: boolean
+  /** what sits over a main clip moves with it (~, TL4c) */
   linkage: boolean
 }
 

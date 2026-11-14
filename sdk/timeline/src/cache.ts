@@ -76,8 +76,11 @@ export function keyOf(t: Timeline, [from, to]: Range, media: (clip: Clip) => str
   return `${from}-${to}-${h.toString(16).padStart(8, "0")}`
 }
 
+/** A drawn range in the store, as the clearing reads it (TL10e). */
 export interface Kept {
+  /** the range's key (rangeKey): what it is drawn from */
   key: string
+  /** what it takes on disk */
   bytes: number
   /** when it was last played (ms) */
   used: number

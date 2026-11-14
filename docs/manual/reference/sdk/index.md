@@ -51,7 +51,7 @@ Frames, animation, springs, states and input, and holding a frame until it's rea
 
 ## Video, sound and text
 
-Footage, pictures, sound, words and colour.
+Footage, pictures, sound, words and colour, and the timeline they are edited on.
 
 | Import | What it's for | Exports |
 | --- | --- | --- |
@@ -61,6 +61,7 @@ Footage, pictures, sound, words and colour.
 | [`raea/image`](image.md) | Pictures on the page and in the world, and texture atlases packed from them. | 3 components, 1 class, 5 types |
 | [`raea/asset`](asset.md) | Files the project holds and assets made for it: staticFile, generated sound and music, and glTF bytes. | 9 functions, 1 value, 8 types |
 | [`raea/color`](color.md) | Bevy's colour types: Srgba, LinearRgba, Hsla, Oklab, Oklch and the rest, with their conversions. | 2 functions, 7 classes |
+| [`raea/editor`](editor.md) | the timeline the feed edits a film, a scene or a sound on, as data. Tracks, clips, keys and markers; every edit an operation with its inverse (apply); a composition's sequences read into it (sequenceRows) and the edits written back as SeqEdit; easings, speed curves, snapping, the frame store's keys and what a plugin adds. No React and no DOM: an agent's script, the app's host and a test use the same model the app's strip does. | 50 functions, 14 values, 31 types |
 
 ## 3D
 

@@ -5,36 +5,47 @@ import { EASES } from "./keys"
 import { type Ease, type SpeedPoint, under } from "./model"
 import { CURVES, FASTEST, SLOWEST } from "./speed"
 // raea's effects (TL7b): the one table the engine's <Effect> draws from, so a preview here is what a render shows
-import { EFFECTS, effectFilter, type EffectKind, type EffectPart, effectPartsError, partsFilter } from "../../video/src/effects"
+import { EFFECTS, effectFilter, type EffectKind, type EffectPart, effectPartsError, partsFilter } from "@raea/video/effects"
 
 export { EFFECTS, effectFilter, type EffectKind, type EffectPart, partsFilter }
 
 /** An effect the palette offers: raea's own by its kind, a plugin's with the parts that draw it. */
 export interface EffectInfo {
+  /** its kind, as <Effect kind> takes it */
   kind: string
+  /** what the bar and the clip's head say */
   title: string
+  /** a plugin's: the CSS filter functions that draw it, each from amount 0 to amount 1 */
   parts?: EffectPart[]
 }
 
 export interface TransitionKind {
   /** the component's name in the composition's code */
   kind: string
+  /** what the cut's menu says */
   title: string
 }
 
 /** A kind of track: what its head says, and where it stacks (with the tracks over the picture, or with the sound
  *  under it). A clip on it is of that kind. */
 export interface TrackKindInfo {
+  /** its kind, as a Track's kind names it */
   kind: string
+  /** what its head says */
   title: string
+  /** it stacks with the sound, under the main track */
   under?: boolean
 }
 
 /** A way words are put on the picture (TL7c): where they stand, and how they are drawn (CSS, as React writes it). */
 export interface TextStyle {
+  /** its kind, kept in a text clip's props */
   kind: string
+  /** what the bar says */
   title: string
+  /** where the words stand on the picture */
   place: "top" | "center" | "bottom"
+  /** how they are drawn: type and colour, as React writes CSS (TEXT_PROPS lists what it may set) */
   style: Record<string, string | number>
 }
 /** The CSS a text style may set: type and colour, nothing that lays the frame out. */
@@ -61,14 +72,20 @@ export function textStyleError(t: unknown): string | undefined {
 
 /** A tool a plugin adds (TL11a): one press sets these on every picked clip, as one edit each. */
 export interface Preset {
+  /** its id: lowercase letters, digits and dashes */
   id: string
+  /** what the bar says */
   title: string
+  /** what it sets on each picked clip: placement props (PRESET_PROPS), a speed, a level */
   set: { props?: Record<string, number | boolean>; speed?: number; volume?: number }
 }
 /** Marks edges snap to that a plugin adds (TL11a): a grid, one mark every `every` seconds from the start. */
 export interface SnapGrid {
+  /** its id: lowercase letters, digits and dashes */
   id: string
+  /** what the snap menu says */
   title: string
+  /** seconds between its marks, from 0.01 to 600 */
   every: number
 }
 /** The props a preset may set: a clip's placement (what the editor's own tools set). */
@@ -98,8 +115,11 @@ export function gridFrames(grid: SnapGrid, fps: number, length: number): number[
 
 /** What one plugin adds. */
 export interface Adds {
+  /** easings of its own, by name (TL5c) */
   eases?: Record<string, Ease>
+  /** speed curves of its own, by name (TL6b) */
   curves?: Record<string, SpeedPoint[]>
+  /** transitions of its own (TL7a) */
   transitions?: TransitionKind[]
   /** kinds of track of its own (TL11a): a clip posted or added on one is drawn and edited like any other */
   tracks?: TrackKindInfo[]

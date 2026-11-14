@@ -2,7 +2,9 @@
 // beats and the film's ends. (The main track's magnet is the operations' own: ops.ts settles it.)
 import { type Clip, end, type Frames, type Timeline, type Track } from "./model"
 
+/** A frame an edge snaps to. */
 export interface Target {
+  /** its frame on the timeline */
   at: Frames
   /** what is there, for the line drawn where it snapped */
   what: "clip" | "playhead" | "marker" | "beat" | "start"

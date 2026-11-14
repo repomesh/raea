@@ -16,7 +16,7 @@ export function textStyleOf(v: unknown): TextStyle | undefined {
     return undefined
   }
 }
-import { effectPartsError } from "../../video/src/effects"
+import { effectPartsError } from "@raea/video/effects"
 
 /** An effect clip's parts, kept in its props as JSON: read back when they are well formed. */
 export function effectParts(v: unknown): EffectPart[] | undefined {
@@ -32,12 +32,19 @@ export function effectParts(v: unknown): EffectPart[] | undefined {
 /** A <Sequence> as the host lists it: its place among the file's elements, its span in the composition's frames,
  *  the lane it sits on (nested ones below their parent, overlapping ones apart), and why it can't be rewritten. */
 export interface SeqRow {
+  /** its place among the file's <Sequence> elements, in source order: what an edit names it by */
   i: number
+  /** its name prop, or what the host calls it when it has none */
   name: string
+  /** what its clip's head says, when it isn't the name */
   label?: string
+  /** its first frame in the composition */
   from: number
+  /** the frame after its last */
   to: number
+  /** the lane it sits on: 0 the top, nested ones below their parent, overlapping ones apart */
   lane: number
+  /** why it can't be rewritten (a span from a variable, a loop), when it can't */
   locked?: string
   /** the keys its <Nudge> holds, each [frame of the sequence, value, ease?] (TL5d) */
   keys?: Record<string, [number, number, Ease?][]>
@@ -45,6 +52,7 @@ export interface SeqRow {
   speed?: number
   /** its footage's speed as a curve, each [place 0 to 1, speed] (its media's speedCurve), over `shows` source frames (TL6b) */
   curve?: [number, number][]
+  /** under `curve`: how many source frames it shows */
   shows?: number
   /** how it is placed, as its <Nudge> says without keys: moved, scaled, turned, faded, mirrored, cropped (TL3h) */
   look?: SeqLook
@@ -54,21 +62,31 @@ export interface SeqRow {
   effect?: { kind: string; amount: number; /** a plugin's: the parts that draw it */ parts?: EffectPart[] }
   /** how it comes in and goes out: its <Transition>'s in and out (TL7a) */
   in?: { kind: string; frames: number }
+  /** how it goes out: its <Transition>'s out */
   out?: { kind: string; frames: number }
   /** a <Video> or an <Audio> of its own (TL0c): it plays where the sequence it is in does, from `startFrom` of its
    *  file, at its own level */
   media?: "video" | "audio"
+  /** its media's first frame used, in frames of its file */
   startFrom?: number
+  /** its media's level, 1 as recorded */
   volume?: number
 }
 /** A sequence's still placement: its <Nudge>'s props (sdk/video nudge.tsx). `crop` is left, top, right, bottom. */
 export interface SeqLook {
+  /** moved right, in px of the composition */
   x?: number
+  /** moved down, in px of the composition */
   y?: number
+  /** times its size (1 as it is) */
   scale?: number
+  /** turned clockwise, in degrees */
   rotate?: number
+  /** from 0 (gone) to 1 (as it is) */
   opacity?: number
+  /** flipped left to right */
   mirror?: boolean
+  /** cut in from each edge, in % of its size: left, top, right, bottom */
   crop?: [number, number, number, number]
 }
 const CROPS = ["cropLeft", "cropTop", "cropRight", "cropBottom"]
@@ -315,18 +333,27 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
 
 /** A track of a sound in the feed as its host lists it (raea-feed host/sounds.ts), in seconds of the render. */
 export interface SoundTrack {
+  /** its id in the sound's file */
   id: string
+  /** what its head says */
   name: string
+  /** what it holds: notes (a part played from notes), clips (files placed in time) or lines (words sung or said) */
   kind: "notes" | "clips" | "lines"
+  /** the bus it plays through */
   bus: string
+  /** its clips, each with its span in seconds, what it is, its file, where in the file it starts and its level in dB */
   clips: { id: string; from: number; to: number; label: string; src?: string; offset?: number; gainDb?: number }[]
 }
 /** A clip's span and level, in seconds and dB: what the host writes back for a clip that was moved, trimmed or
  *  turned up or down (raea-feed host/clips.ts). */
 export interface ClipSpan {
+  /** where it starts, in seconds of the render */
   start: number
+  /** where it ends, in seconds of the render */
   end: number
+  /** where in its file it starts playing, in seconds */
   offset: number
+  /** its level change, in dB (0 as recorded) */
   gainDb: number
 }
 

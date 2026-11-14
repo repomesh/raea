@@ -79,7 +79,9 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
   sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
   an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
   PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 20 browser
-  tests in Chrome, 10 of them also passing in a headless raea window (the rest stop at helpers its runner lacks):
+  tests in Chrome; of the 19 that can run in a headless raea window (all but the voice test, which there would ask
+  for this Mac's microphone) 16 pass, among them a composition's every edit, freeze and reverse, mirror and crop,
+  effects, groups and compounds; the other three stop at the runner (a route answered late, a reload, a posted item):
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
                TL1d (the poster on the main track's head: a click makes the playhead's frame the poster),
                TL2a-e, TL3a-g, TL3h (freeze and reverse played live from the film's own frames; mirror,

@@ -84,6 +84,13 @@ Feature: Lightspeed: raea as fast as anything could be, with the best quality, m
         each frame two to three times slower: the GPU is one, and the window and every other render wait on it, so
         it is not a default. Two to three times on ray-traced frames is a cheaper trace (fewer pixels or samples
         traced, then upscaled), which changes the picture and is a rendering decision, not plumbing
+      And measured 11-13 for drafts, where a smaller picture would change nothing that ships: `raea render` has no
+        way to draw a composition smaller than it says it is (--w and --h only fill in a size a composition leaves
+        out: the same 61-frame ray-traced shot with --w 960 --h 540 came out 1920 by 1080 in 4.1 s, against 4.7 s),
+        so a draft (the composition editor's, a 3D scene's kept frames in docs/timeline.feature TL10f) pays for
+        every pixel of the final. A render scale for drafts only (half the pixels each way, as the live stage's
+        quality steps already draw a scene) is the next lever, and is engine work not yet started. A render asked
+        for again with nothing changed is the export cache's: 0.3 s
 
     Scenario: PF5. What agents lose time on
       Then fixed in the lane check (tools/agents/check, on this Mac): the CLI surface step tests the raea it rebuilds

@@ -59,7 +59,9 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "set", id: "seq-1", set: { name: " " } })).toEqual({ why: "a text clip says something: delete it to take its words off" })
     expect(seqEdits(t, { op: "set", id: "seq-0", set: { name: "x" } })).toEqual({ why: "a sequence's name is its own code's: only a text clip's words change here" })
     expect(seqEdits(t, { op: "add", kind: "text", clip: { id: "new", kind: "text", name: "Sale ends Friday", start: 45, length: 90 } })).toEqual([{ op: "text", at: 45, frames: 90, text: "Sale ends Friday" }])
-    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words and effects are added to a composition here: footage and sound are its code's to place" })
+    expect(seqEdits(t, { op: "add", kind: "video", clip: { id: "new", kind: "video", start: 0, length: 30 } })).toEqual({ why: "only words, effects and recordings are added to a composition here: footage and sound are its code's to place" })
+    // a recording made at the timeline (TL8b) is its file, placed
+    expect(seqEdits(t, { op: "add", kind: "sound", clip: { id: "voice-1", kind: "audio", name: "Voice 1", props: { file: "/p/attachments/voice-1.wav" }, start: 30, length: 75 } })).toEqual([{ op: "voice", at: 30, frames: 75, file: "/p/attachments/voice-1.wav" }])
   })
 
   test("a sequence holding an <Effect> is an effect clip: its kind and amount set, and one added is a new sequence (TL7b)", () => {

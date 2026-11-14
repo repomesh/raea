@@ -72,29 +72,48 @@ Feature: The timeline SDK (0.1.5): CapCut's timeline, on the composition, in the
        store keeps itself under a size the person sets.
 
   Status, 11-13 (the first day). On raea main: sdk/timeline (model, ops with inverses, compound clips, keys and
-  bezier easing, speed curves, snapping, the frame store's decisions, live playback's mapping, readers for a
-  composition's sequences and its footage and sound, a film's scenes and a sound's tracks, the palette a plugin adds
-  to; 63 tests), and in sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom) and a <Video>'s or an
-  <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
-  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 15 browser
+  bezier easing, speed curves, freeze frames and reversed footage, snapping, the frame store's decisions, live
+  playback's mapping, readers and writers for a composition's sequences (its footage and sound, its text, its
+  effects, a recording), a film's scenes and a sound's tracks, the palette a plugin adds to; 65 tests), and in
+  sdk/video <Nudge keys>, <Transition in out> (fade, slide, wipe, zoom), <Effect kind amount in out> (blur, mono,
+  sepia, vivid, faded, contrast, bright, dark, invert, hue: a filter on the picture under it) and a <Video>'s or
+  an <Audio>'s speedCurve (the mixer carries its sound through the changing rate as one voice). In raea-feed, draft
+  PR #19: the new timeline is the timeline (localStorage raea.timeline-sdk = 0 brings the old strip back); 18 browser
   tests in Chrome, 10 of them also passing in a headless raea window (the rest stop at helpers its runner lacks):
     built      TL0a-d, TL1a-c (a plugin's lane as a row under the tracks; collapse and the top edge's resize),
-               TL2a-e, TL3a-e, TL3g, TL3h's freeze and reverse (played live from the film's own frames), TL3i,
-               TL4a-c, TL5a-c, TL6a-b, TL7a, TL8a (waveform, level line, fades),
-               TL11a for easings, speed curves and transitions as a plugin's data, TL12a-b, TL14a-c
+               TL2a-e, TL3a-e, TL3g, TL3h (freeze and reverse played live from the film's own frames; mirror,
+               rotate and crop shown on the player at once, as are a clip's keyed scale, place, turn and opacity),
+               TL3i, TL4a-c, TL5a-c, TL6a-b, TL7a, TL7b for raea's ten effects (an effect is a clip of its own,
+               shown on the player where it is on), TL7c (text added with T, renamed by a double-click), TL8a
+               (waveform, level line, fades), TL8b's beats as ticks that edges snap to (none can be turned off
+               yet), TL8c (Record from the playhead, the picture playing; the recording a clip named by what was
+               said, its file in the project's attachments), TL11a for easings, speed curves, transitions and effects as data,
+               TL12a-b, TL14a-c
     in code    a composition's sequences: move, trim, split, delete (E3), keys on x, y, scale, rotate and opacity
                (TL5d), a speed or a speed curve for a sequence that holds footage (TL6a-b), a transition on a cut
-               (TL7a), a <Video>'s
-               or an <Audio>'s level (TL8a); each written into the working version the moment it is made, its draft
-               played over the picture (TL9a, TL10d), finished and posted on Send with the agent told (TL9b). A
-               scene's sequences: move, trim, split, delete written into the scene's own file, which the stage
-               opens again (TL14c). A sound's clips: span, place in the file, level (TL14b)
-    plays      TL10a for a film's own frames: cuts, moves, trims and speeds at once, the player's buffer on the ruler
-    decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first): a store of
-               drawn frames by range, under a size limit, isn't built; a composition's drafts are kept by their
-               source (the newest 24), so an undo plays its draft again at once
-    not built  TL1d, TL3f, TL3h's mirror, rotate and crop, TL7b-c, TL8b-c, TL9d, TL10f for 3D beyond the
-               stage's own play, TL11a's track and clip kinds, tools and snapping targets, TL13's measurements
+               (TL7a), an effect as a sequence holding an <Effect>, its kind and amount (TL7b), a sequence of
+               words as a text clip, its words rewritten, words added as a new sequence (TL7c), a <Video>'s or an
+               <Audio>'s level (TL8a), a recording as a sequence holding an <Audio> of its file (TL8c); each
+               written into the working version the moment it is made, its draft played over the picture (TL9a,
+               TL10d), finished and posted on Send with the agent told (TL9b). A scene's sequences: move, trim,
+               split, delete written into the scene's own file, which the stage opens again (TL14c). A sound's
+               clips: span, place in the file, level (TL14b)
+    plays      TL10a for a film's own frames: cuts, moves, trims, speeds, freezes and reversed footage at once, the
+               player's buffer on the ruler. TL10f: a timed 3D scene's frames are drawn ahead by the host a few
+               seconds at a time at draft quality and kept by range, each range under what it is drawn from (the
+               code outside the scene's sequences and the sequences on in it), so an edit to one sequence draws
+               again only the ranges it is on and an undo plays what it had; the store stays under a size
+               (RAEA_SCENE_FRAMES_LIMIT, 1 GiB), the least recently played going first; the scene's timeline
+               shows what is kept, and Play runs it over the stage from the scene's own camera, handing back to
+               the live stage where nothing is kept (seen in a headless raea window on the real host: the sample
+               room drawn, kept, and played at its own rate)
+    decided    TL10b, c and e in the SDK (which ranges an edit changes, a range's key, what goes first); a
+               composition's drafts are kept by their source, the least recently played going first under 1 GiB
+               (RAEA_DRAFTS_LIMIT), so an undo plays its draft again at once
+    not built  TL1d, TL3f, mirror and crop on a composition's sequence (its <Nudge> has no such props yet: the
+               edit is refused with why), a split of a sequence under a speed curve, effects and text a plugin
+               adds, a caption split with Enter, TL9d, TL11a's tools and snapping targets, TL13's measurements. The skills guide's note
+               on an item's `timeline` field waits for PR #19 to merge
 
   Background:
     Given the SDK is sdk/timeline in raea, the app's side is raea-feed src/detail (timeline, strip, blocks), the

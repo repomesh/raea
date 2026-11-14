@@ -54,6 +54,8 @@ export type SeqEdit =
   | { op: "text"; at: number; frames: number; text: string }
   /** an effect put on the picture from `at` for `frames`: a new sequence holding an <Effect>, after the composition's last (TL7b) */
   | { op: "effect"; at: number; frames: number; kind: string; amount: number }
+  /** a recording put on the timeline from `at` for `frames` (TL8b): a new sequence holding an <Audio> of the file */
+  | { op: "voice"; at: number; frames: number; file: string }
   /** an effect clip's kind or amount */
   | { op: "fx"; i: number; kind?: string; amount?: number }
   /** how it comes in ("in") or goes out ("out"): its <Transition>'s edge set, or taken off with 0 frames (TL7a) */
@@ -237,8 +239,10 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
         const amount = typeof op.clip.props?.amount === "number" ? Math.min(1, Math.max(0, op.clip.props.amount)) : 1
         return [{ op: "effect", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), kind, amount }]
       }
+      // a recording made here (its file on this Mac): a new sequence of its own, holding an <Audio>
+      if (op.clip.kind === "audio" && typeof op.clip.props?.file === "string" && op.clip.props.file) return [{ op: "voice", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), file: op.clip.props.file }]
       // words put on the picture: a new sequence of its own
-      if (op.clip.kind !== "text") return { why: "only words and effects are added to a composition here: footage and sound are its code's to place" }
+      if (op.clip.kind !== "text") return { why: "only words, effects and recordings are added to a composition here: footage and sound are its code's to place" }
       return [{ op: "text", at: Math.max(0, Math.round(op.clip.start)), frames: Math.max(1, Math.round(op.clip.length)), text: (op.clip.name ?? "Text").trim() || "Text" }]
     }
     default:

@@ -74,6 +74,8 @@ export interface Clip {
   freeze?: boolean
   /** turned off: drawn dimmed, left out of the picture and the sound (TL3g) */
   off?: boolean
+  /** footage whose own sound was taken out onto a sound track (TL4c): its picture plays silent */
+  muted?: boolean
   /** it can't be changed here, and why ("set in code", TL0c) */
   locked?: string
   /** clips with one group pick and move as one (TL3g) */

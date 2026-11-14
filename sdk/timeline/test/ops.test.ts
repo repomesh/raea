@@ -35,6 +35,7 @@ describe("TL0b: an operation is a pure function with an inverse", () => {
     { op: "key", id: "b", prop: "scale", at: 10, value: 1.2 },
     { op: "mark", marker: { id: "m1", at: 45 } },
     { op: "track", id: "sound-1", set: { muted: true } },
+    { op: "extract", id: "b" },
     { op: "transition", transition: { id: "x1", kind: "dissolve", after: "a", length: 12 } },
     { op: "option", set: { magnet: false } },
   ]
@@ -189,5 +190,48 @@ describe("TL6: speed", () => {
       expect(at(done(on, { op: "set", id: "b", set: { curve: null } }), "b").length, name).toBe(60)
       expect(at(done(on, { op: "set", id: "b", set: { curve: null } }), "b").shows).toBeUndefined()
     }
+  })
+})
+
+describe("TL4c: footage's own sound taken out (Cmd+Shift+S)", () => {
+  test("becomes a sound clip over the same span, from the same place in the file, at the same pace and level; the footage plays silent", () => {
+    const t = done(done(film(), { op: "set", id: "b", set: { volume: 0.5, fadeIn: 6 } }), { op: "extract", id: "b" })
+    expect(at(t, "b")).toMatchObject({ muted: true, start: 30, length: 60, in: 10 })
+    expect(at(t, "b").volume).toBeUndefined()
+    expect(at(t, "b").fadeIn).toBeUndefined()
+    // a sound track with room has it: the music's is full, so a new one under it
+    const sound = at(t, "b-sound+")
+    expect(sound).toEqual({ id: "b-sound+", kind: "audio", name: "b", start: 30, length: 60, in: 10, source: 300, volume: 0.5, fadeIn: 6, props: { of: "b" } })
+    expect(find(t, "b-sound+")!.track.kind).toBe("sound")
+    expect(t.tracks.map((k) => k.id)).toEqual(["text-1", "main", "sound-1", "sound-2"])
+  })
+
+  test("its speed, curve and direction go with it, and it can be named", () => {
+    const fast = done(film(), { op: "set", id: "b", set: { speed: 2, reverse: true } })
+    const t = done(fast, { op: "extract", id: "b", sound: "b-voice" })
+    expect(at(t, "b-voice")).toMatchObject({ speed: 2, reverse: true, length: 30, in: 10 })
+  })
+
+  test("from then on the sound is its own: moved or removed without the footage, and the footage without it", () => {
+    const t = done(film(), { op: "extract", id: "b" })
+    const moved = done(t, { op: "move", ids: ["b-sound+"], by: 15 })
+    expect(spans(moved, "main")).toEqual(["a 0-30", "b 30-90", "c 90-120"])
+    expect(spans(moved, "sound-2")).toEqual(["b-sound+ 45-105"])
+    // the footage removed: the main track closes up, its sound stays where it was
+    expect(spans(done(t, { op: "remove", ids: ["b"] }), "sound-2")).toEqual(["b-sound+ 30-90"])
+  })
+
+  test("is refused for what has no sound of its own to take out, or has had it taken out", () => {
+    const t = done(film(), { op: "extract", id: "b" })
+    const why = (tl: Timeline, op: Op) => {
+      const r = apply(tl, op)
+      return r.ok ? "applied" : r.why
+    }
+    expect(why(t, { op: "extract", id: "b" })).toBe("b's sound is on a sound track already")
+    expect(why(film(), { op: "extract", id: "music" })).toBe("music is sound already")
+    expect(why(film(), { op: "extract", id: "title" })).toBe("title isn't footage: it has no sound of its own to take out")
+    const still = done(film(), { op: "freeze", at: 40, length: 30 })
+    expect(why(still, { op: "extract", id: "b-still+" })).toBe("Freeze isn't footage: it has no sound of its own to take out")
+    expect(why(film(), { op: "extract", id: "b", sound: "music" })).toBe("there is already a clip music")
   })
 })

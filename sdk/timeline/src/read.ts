@@ -71,6 +71,8 @@ export interface SeqRow {
   startFrom?: number
   /** its media's level, 1 as recorded */
   volume?: number
+  /** a <Video> whose own sound was taken out (muted): its sound is an <Audio> of its own (TL4c) */
+  muted?: boolean
 }
 /** A sequence's still placement: its <Nudge>'s props (sdk/video nudge.tsx). `crop` is left, top, right, bottom. */
 export interface SeqLook {
@@ -118,6 +120,9 @@ export type SeqEdit =
   | { op: "edge"; i: number; side: "in" | "out"; kind: string; frames: number }
   /** a <Video>'s or an <Audio>'s own level (TL8a) */
   | { op: "level"; i: number; volume: number }
+  /** a <Video>'s own sound taken out (TL4c): the <Video> muted, and an <Audio> of the same file, from the same place
+   *  at the same pace and level, in a new sequence from `at` for `frames` after the composition's last */
+  | { op: "extract"; i: number; at: number; frames: number }
 
 /** The transitions a composition's <Transition> draws (sdk/video transition.tsx). */
 export const CODE_KINDS = ["fade", "slide", "wipe", "zoom"]
@@ -160,7 +165,7 @@ export function fromSequences(rows: SeqRow[], fps: number): Timeline {
   const mediaTracks = (kind: "video" | "audio"): Track[] => {
     const out: Track[] = []
     for (const r of media.filter((m) => m.media === kind).sort((a, b) => a.from - b.from)) {
-      const c: Clip = { id: seqId(r.i), kind, name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), in: r.startFrom ?? 0, ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.volume !== undefined && { volume: r.volume }), ...(r.locked && { locked: r.locked }) }
+      const c: Clip = { id: seqId(r.i), kind, name: r.label ?? r.name, start: r.from, length: Math.max(1, r.to - r.from), in: r.startFrom ?? 0, ...(r.speed && r.speed !== 1 && { speed: r.speed }), ...(r.volume !== undefined && { volume: r.volume }), ...(r.muted && kind === "video" && { muted: true }), ...(r.locked && { locked: r.locked }) }
       const home = out.find((k) => k.clips.every((o) => end(o) <= c.start || o.start >= end(c)))
       if (home) home.clips.push(c)
       else out.push({ id: `${kind === "audio" ? "sound" : "footage"}-${out.length + 1}`, kind: kind === "audio" ? "sound" : "overlay", name: kind === "audio" ? "Sound" : "Footage", clips: [c] })
@@ -209,6 +214,16 @@ export function seqEdits(t: Timeline, op: Op): SeqEdit[] | { why: string } {
   // a <Video> or an <Audio> plays where its sequence does: its level is its own, everything else its sequence's
   const isMedia = (id: string) => ["video", "audio"].includes(find(t, id)?.clip.kind ?? "") && /^(footage|sound)-/.test(find(t, id)?.track.id ?? "")
   const ids = "ids" in op && op.ids ? op.ids : "id" in op && typeof op.id === "string" ? [op.id] : []
+  // footage's sound taken out: its <Video> muted and an <Audio> of the file beside it
+  if (op.op === "extract") {
+    const at = find(t, op.id)
+    if (!at || !isMedia(op.id) || at.clip.kind !== "video") return { why: at?.clip.kind === "sequence" ? "a sequence's sound is the footage in it: take the sound out of its <Video> on the footage track" : "only a <Video>'s sound is taken out of a composition here" }
+    const i = seqOf(op.id)
+    if (i === undefined) return { why: "that isn't one of the composition's elements" }
+    const tried = apply(t, op)
+    if (!tried.ok) return { why: tried.why }
+    return [{ op: "extract", i, at: at.clip.start, frames: at.clip.length }]
+  }
   if (ids.some(isMedia)) {
     if (op.op === "set" && Object.keys(op.set).filter((k) => op.set[k as keyof typeof op.set] !== undefined).join() === "volume") return ids.flatMap((id) => { const i = seqOf(id); return i === undefined ? [] : [{ op: "level", i, volume: Math.round(Math.max(0, op.set.volume!) * 1000) / 1000 } as SeqEdit] })
     return { why: "footage and sound play where their sequence does: move, trim or speed the sequence; here only the level is its own" }

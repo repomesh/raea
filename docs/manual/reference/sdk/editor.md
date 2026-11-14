@@ -542,6 +542,7 @@ A span of something on a track: footage, a sound, words, a composition's sequenc
 | `reverse` | `boolean` | footage played backward: its last source frame first |
 | `freeze` | `boolean` | a still: the source frame `in` held for the clip's whole length |
 | `off` | `boolean` | turned off: drawn dimmed, left out of the picture and the sound |
+| `muted` | `boolean` | footage whose own sound was taken out onto a sound track: its picture plays silent |
 | `locked` | `string` | it can't be changed here, and why ("set in code", TL0c) |
 | `group` | `string` | clips with one group pick and move as one |
 | `props` | `Record<string, Value \| boolean>` | its still values by property (x, y, scale, rotate, opacity, text, a plugin's): a keyed one is ignored |
@@ -711,6 +712,7 @@ the lane it sits on (nested ones below their parent, overlapping ones apart), an
 | `media` | `"video" \| "audio"` | a <Video> or an <Audio> of its own: it plays where the sequence it is in does, from `startFrom` of its file, at its own level |
 | `startFrom` | `number` | its media's first frame used, in frames of its file |
 | `volume` | `number` | its media's level, 1 as recorded |
+| `muted` | `boolean` | a <Video> whose own sound was taken out (muted): its sound is an <Audio> of its own |
 
 ### `Showing`
 

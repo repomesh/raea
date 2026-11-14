@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { apply, clipEdits, fromRender, fromSequences, fromTracks, readTimeline, segmentsOf, seqEdits, type Timeline } from "../src"
+import { apply, clipEdits, find, fromRender, fromSequences, fromTracks, readTimeline, segmentsOf, seqEdits, type Timeline } from "../src"
 
 const done = (t: Timeline, op: Parameters<typeof apply>[1]) => {
   const r = apply(t, op)
@@ -107,6 +107,21 @@ describe("TL0c: a timeline is read from a composition", () => {
     expect(seqEdits(t, { op: "move", ids: ["seq-6"], by: 10 })).toEqual({ why: "footage and sound play where their sequence does: move, trim or speed the sequence; here only the level is its own" })
     // the sequences themselves are as before
     expect(seqEdits(t, { op: "move", ids: ["seq-1"], by: 10 })).toEqual([{ op: "move", i: 1, from: 25, to: 70 }])
+  })
+
+  test("a <Video>'s sound taken out is the <Video> muted and an <Audio> of its file beside it, read back as such (TL4c)", () => {
+    const media = [...rows, { i: 4, name: "Video", label: "take.mp4", from: 90, to: 180, lane: 0, media: "video" as const, startFrom: 30 }, { i: 6, name: "Audio", label: "bed.wav", from: 0, to: 180, lane: 0, media: "audio" as const }]
+    const t = fromSequences(media, 30)
+    expect(seqEdits(t, { op: "extract", id: "seq-4" })).toEqual([{ op: "extract", i: 4, at: 90, frames: 90 }])
+    expect(seqEdits(t, { op: "extract", id: "seq-6" })).toEqual({ why: "only a <Video>'s sound is taken out of a composition here" })
+    expect(seqEdits(t, { op: "extract", id: "seq-1" })).toEqual({ why: "a sequence's sound is the footage in it: take the sound out of its <Video> on the footage track" })
+    // the code as the host writes it, read again: the <Video> muted, its sound a clip on a sound track
+    const back = fromSequences([...media.map((r) => (r.i === 4 ? { ...r, muted: true } : r)), { i: 7, name: "Audio", label: "take.mp4", from: 90, to: 180, lane: 0, media: "audio" as const, startFrom: 30 }], 30)
+    expect(find(back, "seq-4")!.clip.muted).toBe(true)
+    expect(seqEdits(back, { op: "extract", id: "seq-4" })).toEqual({ why: "take.mp4's sound is on a sound track already" })
+    expect(find(back, "seq-7")!.track.kind).toBe("sound")
+    // a muted <Audio> isn't footage whose sound was taken out
+    expect(fromSequences([{ ...media[media.length - 1], muted: true }], 30).tracks[0].clips[0].muted).toBeUndefined()
   })
 
   test("a transition on a cut is the part before going out and the part after coming in, and is read back from them", () => {

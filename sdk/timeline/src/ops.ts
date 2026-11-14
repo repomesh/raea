@@ -25,6 +25,10 @@ export type Op =
   | { op: "uncompound"; id: string }
   /** a clip put on the timeline: on `track`, else the first of `kind` with room, else a new track of that kind */
   | { op: "add"; kind: TrackKind; clip: Clip; track?: string }
+  /** footage's own sound taken out onto a sound track (Cmd+Shift+S, TL4c): a sound clip `sound` (an id made from the
+   *  footage's when unnamed) over the same span, from the same place in the file at the same pace and level, and the
+   *  footage silent from then on, so its sound moves, trims and fades on its own */
+  | { op: "extract"; id: string; sound?: string }
   /** a clip's own fields; `props` are merged into its props; a speed or a curve changes its length (TL6) */
   /** a still of the frame under `at` on a clip (the main track's, when none is named), `length` frames long, put in
    *  there: the clip is split and the still goes between its halves (TL3h) */
@@ -234,6 +238,20 @@ function run(t: Timeline, op: Exclude<Op, { op: "restore" }>): Timeline {
       const parts = into > 0 ? halves(c, at, fresh(t, c.id)) : [undefined, c] as const
       const after = parts[1] ? { ...parts[1], start: at + len } : undefined
       return withTracks(t, (k) => (k.id !== host.track.id ? k : { ...k, clips: [...k.clips.flatMap((x) => (x.id === c.id ? [parts[0], still, after].filter((y): y is Clip => !!y) : [x.start >= end(c) ? { ...x, start: x.start + len } : x]))] }))
+    }
+    case "extract": {
+      const { track, clip } = open(t, op.id)
+      const name = clip.name ?? clip.id
+      if (track.kind === "sound" || clip.kind === "audio") no(`${name} is sound already`)
+      if (clip.in === undefined || clip.freeze) no(`${name} isn't footage: it has no sound of its own to take out`)
+      if (clip.muted) no(`${name}'s sound is on a sound track already`)
+      const id = op.sound ?? fresh(t, `${clip.id}-sound`)
+      if (find(t, id)) no(`there is already a clip ${id}`)
+      // the same stretch of the file, played the same way: speed or curve, backward, level and fades
+      const pick = <K extends keyof Clip>(...keys: K[]) => Object.fromEntries(keys.filter((k) => clip[k] !== undefined).map((k) => [k, clip[k]])) as Pick<Clip, K>
+      const sound: Clip = { id, kind: "audio", name, start: clip.start, length: clip.length, ...pick("in", "source", "speed", "curve", "shows", "reverse", "volume", "fadeIn", "fadeOut", "off"), props: { of: clip.id } }
+      const silent = change(t, clip.id, (c) => ({ ...c, muted: true, volume: undefined, fadeIn: undefined, fadeOut: undefined }))
+      return place(silent, "sound", sound)
     }
     case "add": {
       if (find(t, op.clip.id)) no(`there is already a clip ${op.clip.id}`)

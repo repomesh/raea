@@ -423,8 +423,8 @@ copy together). Rotation in radians, XYZ order, as everywhere.
 | `onPointerOver` | `(e: Event3d) => void` | the pointer came over the part (bubbles, as the DOM's) |
 | `onPointerOut` | `(e: Event3d) => void` | the pointer left the part (bubbles) |
 | `onWheel` | `(e: Event3d) => void` | the wheel turned over the part (`deltaX`, `deltaY`) |
-| `quat` | `Quat` | Bevy's rotation as it is, a quaternion [x, y, z, w] in Bevy's axes (y up, z toward the viewer), in place of `rotation`: a turn out of the frame's plane too, as a Sprite's Transform takes it (camera/2d_on_ui) |
 | `opacity` | `number` | 0 to 1 (1 by default) |
+| `quat` | `Quat` | Bevy's rotation as it is, a quaternion [x, y, z, w] in Bevy's axes (y up, z toward the viewer), in place of `rotation`: a turn out of the frame's plane too, as a Sprite's Transform takes it (camera/2d_on_ui) |
 
 ### `Mesh3dProps`
 
